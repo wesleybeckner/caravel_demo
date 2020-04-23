@@ -107,6 +107,69 @@ body {
   flex-direction: column;
 }
 
+#descriptorBlock {
+  flex: 1;
+  position: relative;
+}
+#explain1a {
+  flex: 1;
+}
+
+#explain1b {
+  flex: 3;
+}
+
+#explain2a {
+  flex: 1;
+}
+
+#explain2b {
+  flex: 3;
+}
+#explain3a {
+  flex: 1;
+}
+
+#explain3b {
+  flex: 3;
+}
+#explain4a {
+  flex: 1;
+}
+
+#explain4b {
+  flex: 3;
+}
+
+#explain5a {
+  flex: 1;
+}
+
+#explain5b {
+  flex: 3;
+}
+#explain6a {
+  flex: 1;
+}
+
+#explain6b {
+  flex: 3;
+}
+#ebit-family-block {
+  flex: 5;
+  position: relative;
+}
+
+#bubble-plot-container {
+  flex: 5;
+  position: relative;
+}
+
+#metric-plot-container {
+  flex: 5;
+  position: relative;
+}
+
 #pareto {
   flex: 3;
 }
@@ -115,7 +178,51 @@ body {
   flex: 1;
 }
 
+#x-select-box {
+  flex: 1;
+}
+
+#y-select-box {
+  flex: 1;
+}
+
+#color-select-box {
+  flex: 1;
+}
+
 #line-box {
+  flex: 1;
+}
+
+#bubble-highy-container {
+  flex: 1;
+}
+
+#bubble-highx-container {
+  flex: 1;
+}
+
+#bubble-lowy-container {
+  flex: 1;
+}
+
+#bubble-lowx-container {
+  flex: 1;
+}
+
+#metric-highy-container {
+  flex: 1;
+}
+
+#metric-highx-container {
+  flex: 1;
+}
+
+#metric-lowy-container {
+  flex: 1;
+}
+
+#metric-lowx-container {
   flex: 1;
 }
 
@@ -133,7 +240,7 @@ body {
 }
 
 #opportunity{
-  flex:3;
+  flex: 3;
 }
 
 #violin {
@@ -141,6 +248,14 @@ body {
 }
 
 #descriptorBlock {
+  flex: 2;
+}
+
+#bubble-controls {
+  flex: 2;
+}
+
+#metric-controls {
   flex: 2;
 }
 
