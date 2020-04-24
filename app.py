@@ -11,6 +11,7 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import plotly.express as px
 from itertools import cycle
+import time
 
 import pandas as pd
 import numpy as np
@@ -58,6 +59,16 @@ stat_df = pd.read_csv('data/category_stats.csv')
 old_products = df[descriptors].sum(axis=1).unique().shape[0]
 weight_match = pd.read_csv('data/weight_match.csv')
 
+def available_indicator_dropdown(families, descriptors):
+    df = production_df.loc[production_df['Product Family'].isin(families)]
+    local_df = stat_df.loc[stat_df['descriptor'].isin(descriptors)]
+    sub_df = pd.DataFrame()
+    for i in range(local_df.shape[0]):
+        if df.loc[df[local_df.iloc[i]['descriptor']] == local_df.iloc[i]['group']].shape[0] > 0:
+            sub_df = pd.concat([sub_df, pd.DataFrame(local_df.iloc[i]).T])
+    sub_df = sub_df.reset_index(drop=True)
+    return sub_df
+
 def bubble_chart_kpi(x='EBITDA per Hr Rank', y='Adjusted EBITDA', color='Line',
                       size='Net Sales Quantity in KG'):
     if x == 'EBITDA per Hr Rank':
@@ -93,6 +104,7 @@ def make_bubble_chart(x='EBITDA per Hr Rank', y='Adjusted EBITDA', color='Line',
 
 def calculate_margin_opportunity(sort='Worst', select=[0,10], descriptors=None,
                                  families=None):
+    stat_df = available_indicator_dropdown(families, descriptors)
     if sort == 'Best':
         local_df = stat_df.sort_values('score', ascending=False)
         local_df = local_df.reset_index(drop=True)
@@ -142,14 +154,20 @@ def calculate_margin_opportunity(sort='Worst', select=[0,10], descriptors=None,
             "{:.1f} M of {:.1f} M kg ({:.1f}%)".format(new_kg/1e6, old_kg/1e6,
                 kg_percent)
 
-def make_violin_plot(sort='Worst', select=[0,10], descriptors=None):
+def make_violin_plot(sort='Worst', select=[0,10], descriptors=None, families=None):
+    # print(stat_df.head())
+    if families != None:
+        local_df = available_indicator_dropdown(families, descriptors)
+    else:
+        local_df = stat_df
+    # print(stat_df.head())
     if type(descriptors) == str:
         descriptors = [descriptors]
     if sort == 'Best':
-        local_df = stat_df.sort_values('score', ascending=False)
+        local_df = local_df.sort_values('score', ascending=False)
         local_df = local_df.reset_index(drop=True)
     else:
-        local_df = stat_df
+        local_df = local_df
     if descriptors != None:
         local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
     fig = go.Figure()
@@ -263,10 +281,12 @@ def make_ebit_plot(production_df,
                 data,
             )
 
+
+        local_df = available_indicator_dropdown(families, descriptors)
         if sort == 'Best':
-            local_df = stat_df.sort_values('score', ascending=False)
+            local_df = local_df.sort_values('score', ascending=False)
         elif sort == 'Worst':
-            local_df = stat_df
+            local_df = local_df
 
 
         new_df = pd.DataFrame()
@@ -632,7 +652,7 @@ html.Div([
     ),
     html.Div([
         html.Div([
-            dcc.RadioItems(id='view1',
+            dcc.RadioItems(id='preset_view',
                             options=[{'label': 'INTERACTIVE', 'value': 'INTERACTIVE'},
                                     {'label': 'VIEW 1', 'value': 'VIEW 1'},
                                     {'label': 'VIEW 2', 'value': 'VIEW 2'},
@@ -670,7 +690,7 @@ html.Div([
             dcc.RangeSlider(
                         id='select',
                         min=0,
-                        max=stat_df.shape[0],
+                        max=53,
                         step=1,
                         value=[0,10],
             ),
@@ -737,10 +757,10 @@ app.config.suppress_callback_exceptions = False
      Output('daq-violin', 'on'),
      Output('family_dropdown', 'value'),
      Output('sort', 'value'),],
-    [Input('view1', 'value'),
+    [Input('preset_view', 'value'),
      Input('descriptor_dropdown', 'options')]
 )
-def update_view1(value, options):
+def update_preset_view(value, options):
     if value == 'VIEW 1':
         return ['{}'.format(options[6]['value']),], True,\
             ['Shrink Sleeve'], 'Worst'
@@ -755,37 +775,15 @@ def update_view1(value, options):
             'Best'
 
 @app.callback(
-    [Output('select', 'max'),
-    Output('select', 'value'),],
-    [Input('descriptor_dropdown', 'value'),
-     Input('view1', 'value'),]
-)
-def update_descriptor_choices(descriptors, view1_status):
-    min_val = 0
-    if view1_status == 'VIEW 1':
-        value = 1
-        max_value = 2
-    elif view1_status == 'VIEW 2':
-        value = 2
-        max_value = 16
-    elif view1_status == 'VIEW 3':
-        value = 6
-        max_value = 16
-        min_val = 2
-    else:
-        max_value = stat_df.loc[stat_df['descriptor'].isin(descriptors)].shape[0]
-        max_value = 53
-        value = min(10, max_value)
-    return max_value, [min_val, value]
-
-@app.callback(
     Output('sunburst_plot', 'figure'),
     [Input('violin_plot', 'clickData'),
      Input('length_width_dropdown', 'value'),
      Input('sort', 'value'),
      Input('select', 'value'),
-     Input('descriptor_dropdown', 'value')])
-def display_sunburst_plot(clickData, toAdd, sort, select, descriptors):
+     Input('descriptor_dropdown', 'value'),
+     Input('family_dropdown', 'value'),])
+def display_sunburst_plot(clickData, toAdd, sort, select, descriptors, families):
+    stat_df = available_indicator_dropdown(families, descriptors)
     if sort == 'Best':
         local_df = stat_df.sort_values('score', ascending=False)
         local_df = local_df.reset_index(drop=True)
@@ -809,10 +807,11 @@ def display_descriptor_number(select):
     Output('violin_plot', 'figure'),
     [Input('sort', 'value'),
     Input('select', 'value'),
-    Input('descriptor_dropdown', 'value')]
+    Input('descriptor_dropdown', 'value'),
+    Input('family_dropdown', 'value'),]
 )
-def display_violin_plot(sort, select, descriptors):
-    return make_violin_plot(sort, select, descriptors)
+def display_violin_plot(sort, select, descriptors, families):
+    return make_violin_plot(sort, select, descriptors, families)
 
 @app.callback(
     Output('ebit_plot', 'figure'),
@@ -841,6 +840,43 @@ def display_ebit_plot(sort, select, descriptors, switch, families):
 )
 def display_opportunity(sort, select, descriptors, families):
     return calculate_margin_opportunity(sort, select, descriptors, families)
+
+@app.callback(
+    [Output('select', 'max'),
+    Output('select', 'value'),],
+    [Input('descriptor_dropdown', 'value'),
+     Input('preset_view', 'value'),
+     Input('family_dropdown', 'value'),]
+)
+def update_descriptor_choices(descriptors, preset_view_status, families):
+    min_val = 0
+    max_value = 53
+    ctx = dash.callback_context
+    print(ctx.triggered)
+    if preset_view_status == 'VIEW 1':
+        value = 1
+        max_value = 2
+    elif preset_view_status == 'VIEW 2':
+        value = 2
+        max_value = 2
+    elif preset_view_status == 'VIEW 3':
+        value = 3
+        max_value = 4
+        min_val = 0
+    elif ctx.triggered[0]['value'] == 'INTERACTIVE':
+        max_value = 53
+        value = 10
+    elif (len(families) < 14) | (len(descriptors) < 8):
+        max_value = available_indicator_dropdown(families, descriptors).shape[0]
+        value = min(10, max_value)
+
+
+    else:
+        # stat_df = available_indicator_dropdown(families, descriptors)
+
+        max_value = available_indicator_dropdown(families, descriptors).shape[0]
+        value = min(10, max_value)
+    return max_value, [min_val, value]
 
 if __name__ == "__main__":
     app.run_server(debug=True)
