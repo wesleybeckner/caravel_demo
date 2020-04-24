@@ -220,9 +220,9 @@ def make_ebit_plot(production_df,
                    sort='Worst',
                    descriptors=None,
                    family=None):
+    production_df = production_df.loc[production_df['Net Sales Quantity in KG'] > 0]
     if family != None:
-        production_df = production_df.loc[production_df['Product Family'].isin(
-                    family)]
+        production_df = production_df.loc[production_df['Product Family'].isin(family)]
     families = production_df['Product Family'].unique()
     colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',\
               '#FF6692', '#B6E880', '#FF97FF', '#FECB52']
@@ -239,12 +239,14 @@ def make_ebit_plot(production_df,
                 production_df,
                 x='product',
                 y='Adjusted EBITDA',
+                size='Net Sales Quantity in KG',
                 color='Product Family',
                 color_discrete_map=color_dic,
                 opacity=1).data:
             fig.add_trace(
                 data
-            )
+            ),
+
 
     elif select != None:
         color_dic = {'{}'.format(i): '{}'.format(j) for i, j  in zip(select,
@@ -254,9 +256,9 @@ def make_ebit_plot(production_df,
                 x='product',
                 y='Adjusted EBITDA',
                 color='Product Family',
-
+                size='Net Sales Quantity in KG',
                 color_discrete_map=color_dic,
-                opacity=0.09).data:
+                opacity=0.6).data:
             fig.add_trace(
                 data,
             )
@@ -304,9 +306,6 @@ def make_ebit_plot(production_df,
                    pad=4
 ),
             "xaxis.tickfont.size": 8,
-            # "font":dict(
-            #     size=8,
-            # ),
             })
     return fig
 
