@@ -120,8 +120,8 @@ def calculate_margin_opportunity(sort='Worst', select=[0,10], descriptors=None,
             new_df = new_df.loc[~(new_df[local_df.iloc[index]['descriptor']] ==\
                     local_df.iloc[index]['group'])]
         wait = new_df
-        if families != None:
-            new_df = pd.concat([new_df, df.loc[~(df['Product Family'].isin(families))]]) # add back fams
+    if families != None:
+        new_df = pd.concat([new_df, df.loc[~(df['Product Family'].isin(families))]]) # add back fams
 
     new_EBITDA = new_df['Adjusted EBITDA'].sum()
     EBITDA_percent = new_EBITDA / df['Adjusted EBITDA'].sum() * 100
@@ -638,7 +638,7 @@ html.Div([
                                     {'label': 'VIEW 1', 'value': 'VIEW 1'},
                                     {'label': 'VIEW 2', 'value': 'VIEW 2'},
                                     {'label': 'VIEW 3', 'value': 'VIEW 3'}],
-                            value='RESET',
+                            value='INTERACTIVE',
                             labelStyle={'display': 'inline-block'},
                         style={'margin-bottom': '20px'}),
             html.P(' '),
