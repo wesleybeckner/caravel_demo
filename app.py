@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import dash
 import dash_auth
+import dash_table
 import json
 import dash_core_components as dcc
 import dash_daq as daq
@@ -22,7 +23,8 @@ VALID_USERNAME_PASSWORD_PAIRS = {
 }
 
 app = dash.Dash(
-    __name__, meta_tags=[{"name": "viewport", "content": "width=device-width"}]
+    __name__, meta_tags=[{"name": "viewport", "content": "width=device-width"}],
+    external_stylesheets=[dbc.themes.BOOTSTRAP]
 )
 
 auth = dash_auth.BasicAuth(
@@ -59,6 +61,37 @@ stat_df = pd.read_csv('data/category_stats.csv')
 old_products = df[descriptors].sum(axis=1).unique().shape[0]
 weight_match = pd.read_csv('data/weight_match.csv')
 
+def maximize_ebitda(families, descriptors):
+    local_df = available_indicator_dropdown(families, descriptors)
+    results_df = pd.DataFrame()
+    for family in families:
+        for index in local_df.index:
+            new_df = production_df.loc[production_df['Product Family'] == family]
+            new_df = new_df.loc[~(new_df[local_df.iloc[index]['descriptor']] ==\
+                    local_df.iloc[index]['group'])]
+            new_df = pd.concat([new_df, production_df.loc[~(production_df['Product Family'] == family)]]) # add back fams
+
+            new_EBITDA = new_df['Adjusted EBITDA'].sum()
+            EBITDA_percent = new_EBITDA / production_df['Adjusted EBITDA'].sum() * 100
+            EBITDA_delta = new_EBITDA - production_df['Adjusted EBITDA'].sum()
+            new_products = new_df[production_df.columns[:8]].sum(axis=1).unique().shape[0]
+            product_percent_reduction = (new_products) / \
+                old_products * 100
+            new_kg = new_df['Sales Quantity in KG'].sum()
+            old_kg = production_df['Sales Quantity in KG'].sum()
+            kg_percent = new_kg / old_kg * 100
+
+            results = [family, local_df.iloc[index]['descriptor'], local_df.iloc[index]['group'],\
+                       new_EBITDA, EBITDA_delta, EBITDA_percent, new_products, product_percent_reduction, new_kg, kg_percent]
+            results = pd.DataFrame(results).T
+            results.columns = ['Family', 'Descriptor', 'Group', 'EBITDA', 'EBITDA Delta', '% EBITDA', 'Products',\
+                               '% Products', 'Volume', '% Volume']
+            results_df = pd.concat([results_df, results])
+    results_df = results_df.loc[results_df['EBITDA Delta'] != 0]
+    results_df = results_df.sort_values('% EBITDA', ascending=False).reset_index(drop=True)
+
+    return results_df
+
 def available_indicator_dropdown(families, descriptors):
     df = production_df.loc[production_df['Product Family'].isin(families)]
     local_df = stat_df.loc[stat_df['descriptor'].isin(descriptors)]
@@ -69,98 +102,69 @@ def available_indicator_dropdown(families, descriptors):
     sub_df = sub_df.reset_index(drop=True)
     return sub_df
 
-def bubble_chart_kpi(x='EBITDA per Hr Rank', y='Adjusted EBITDA', color='Line',
-                      size='Net Sales Quantity in KG'):
-    if x == 'EBITDA per Hr Rank':
-        lowx = weight_match.groupby(color)[x].mean().sort_values().index[-1]
-        highx = weight_match.groupby(color)[x].mean().sort_values().index[0]
-    else:
-        lowx = weight_match.groupby(color)[x].mean().sort_values().index[0]
-        highx = weight_match.groupby(color)[x].mean().sort_values().index[-1]
-    lowy = weight_match.groupby(color)[y].mean().sort_values().index[0]
-    highy = weight_match.groupby(color)[y].mean().sort_values().index[-1]
-
-    return "{}".format(highy), \
-            "top {} {}".format(y, color), \
-            "{}".format(highx), \
-            "top {} {}".format(x, color), \
-            "{}".format(lowy), \
-            "bottom {} {}".format(y, color), \
-            "{}".format(lowx), \
-            "bottom {} {}".format(x, color)
-
-
-def make_bubble_chart(x='EBITDA per Hr Rank', y='Adjusted EBITDA', color='Line',
-                      size='Net Sales Quantity in KG'):
-
-    fig = px.scatter(weight_match, x=x, y=y, color=color, size=size)
-    fig.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "paper_bgcolor": "#F9F9F9",
-                # "title": 'EBIT by Product Descriptor',
-                })
-
-    return fig
-
 def calculate_margin_opportunity(sort='Worst', select=[0,10], descriptors=None,
-                                 families=None):
-    stat_df = available_indicator_dropdown(families, descriptors)
-    if sort == 'Best':
-        local_df = stat_df.sort_values('score', ascending=False)
-        local_df = local_df.reset_index(drop=True)
+                                 families=None, results_df=None):
+    if results_df is not None:
+        new_df = production_df
+        for index in results_df.index:
+            new_df = new_df.loc[~((new_df['Product Family'] == results_df.iloc[index]['Family']) &
+                        (new_df[results_df.iloc[index]['Descriptor']] == results_df.iloc[index]['Group']))]
     else:
-        local_df = stat_df
-    if descriptors != None:
-        local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
-    if sort == 'Best':
-        if families != None:
-            sub_family_df = df.loc[df['Product Family'].isin(families)]
+        stat_df = available_indicator_dropdown(families, descriptors)
+        if sort == 'Best':
+            local_df = stat_df.sort_values('score', ascending=False)
+            local_df = local_df.reset_index(drop=True)
         else:
-            sub_family_df = df
-        new_df = pd.DataFrame()
-        for index in range(select[0],select[1]):
-            x = sub_family_df.loc[(sub_family_df[local_df.iloc[index]['descriptor']] == \
-                local_df.iloc[index]['group'])]
-            new_df = pd.concat([new_df, x])
-        new_df = new_df.drop_duplicates()
-    else:
-        if families != None:
-            new_df = df.loc[df['Product Family'].isin(families)]
-        else:
-            new_df = df
-        for index in range(select[0],select[1]):
-            new_df = new_df.loc[~(new_df[local_df.iloc[index]['descriptor']] ==\
+            local_df = stat_df
+        if descriptors != None:
+            local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
+        if sort == 'Best':
+            if families != None:
+                sub_family_df = production_df.loc[production_df['Product Family'].isin(families)]
+            else:
+                sub_family_df = production_df
+            new_df = pd.DataFrame()
+            for index in range(select[0],select[1]):
+                x = sub_family_df.loc[(sub_family_df[local_df.iloc[index]['descriptor']] == \
                     local_df.iloc[index]['group'])]
-        wait = new_df
-    if families != None:
-        new_df = pd.concat([new_df, df.loc[~(df['Product Family'].isin(families))]]) # add back fams
+                new_df = pd.concat([new_df, x])
+            new_df = new_df.drop_duplicates()
+        else:
+            if families != None:
+                new_df = production_df.loc[production_df['Product Family'].isin(families)]
+            else:
+                new_df = production_df
+            for index in range(select[0],select[1]):
+                new_df = new_df.loc[~(new_df[local_df.iloc[index]['descriptor']] ==\
+                        local_df.iloc[index]['group'])]
+            wait = new_df
+        if families != None:
+            new_df = pd.concat([new_df, production_df.loc[~(df['Product Family'].isin(families))]]) # add back fams
 
     new_EBITDA = new_df['Adjusted EBITDA'].sum()
-    EBITDA_percent = new_EBITDA / df['Adjusted EBITDA'].sum() * 100
+    EBITDA_percent = new_EBITDA / production_df['Adjusted EBITDA'].sum() * 100
 
-    new_products = new_df[df.columns[:8]].sum(axis=1).unique().shape[0]
+    new_products = new_df[production_df.columns[:8]].sum(axis=1).unique().shape[0]
 
     product_percent_reduction = (new_products) / \
         old_products * 100
 
     new_kg = new_df['Sales Quantity in KG'].sum()
-    old_kg = df['Sales Quantity in KG'].sum()
+    old_kg = production_df['Sales Quantity in KG'].sum()
     kg_percent = new_kg / old_kg * 100
 
     return "€{:.1f} M of €{:.1f} M ({:.1f}%)".format(new_EBITDA/1e6,
-                df['Adjusted EBITDA'].sum()/1e6, EBITDA_percent), \
+                production_df['Adjusted EBITDA'].sum()/1e6, EBITDA_percent), \
             "{} of {} Products ({:.1f}%)".format(new_products,old_products,
                 product_percent_reduction),\
             "{:.1f} M of {:.1f} M kg ({:.1f}%)".format(new_kg/1e6, old_kg/1e6,
                 kg_percent)
 
 def make_violin_plot(sort='Worst', select=[0,10], descriptors=None, families=None):
-    # print(stat_df.head())
     if families != None:
         local_df = available_indicator_dropdown(families, descriptors)
     else:
         local_df = stat_df
-    # print(stat_df.head())
     if type(descriptors) == str:
         descriptors = [descriptors]
     if sort == 'Best':
@@ -184,8 +188,8 @@ def make_violin_plot(sort='Worst', select=[0,10], descriptors=None, families=Non
                                 box_visible=True,
                                 meanline_visible=True))
     fig.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "paper_bgcolor": "#F9F9F9",
+                "plot_bgcolor": "#FFFFFF",
+                "paper_bgcolor": "#FFFFFF",
                 "title": 'Adjusted EBITDA by Product Descriptor (Median in Legend)',
                 "yaxis.title": "EBITDA (€)",
                 "height": 400,
@@ -194,10 +198,8 @@ def make_violin_plot(sort='Worst', select=[0,10], descriptors=None, families=Non
                        r=0,
                        b=0,
                        t=30,
-                       pad=4
-   ),
+                       pad=4),
                 })
-
     return fig
 
 def make_sunburst_plot(clickData=None, toAdd=None, col=None, val=None):
@@ -207,7 +209,6 @@ def make_sunburst_plot(clickData=None, toAdd=None, col=None, val=None):
     elif col == None:
         col = 'Thickness Material A'
         val = '47'
-
     desc = list(descriptors[:-2])
     if col in desc:
         desc.remove(col)
@@ -219,9 +220,9 @@ def make_sunburst_plot(clickData=None, toAdd=None, col=None, val=None):
         col, val),
         color_continuous_scale=px.colors.sequential.Viridis)
     fig.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "title": '(Select in Violin) {}: {}'.format(col,val),
-                "paper_bgcolor": "#F9F9F9",
+                "plot_bgcolor": "#FFFFFF",
+                "title": '{}: {}'.format(col,val),
+                "paper_bgcolor": "#FFFFFF",
                 "height": 400,
                 "margin": dict(
                        l=0,
@@ -237,9 +238,12 @@ def make_ebit_plot(production_df,
                    select=None,
                    sort='Worst',
                    descriptors=None,
-                   family=None):
+                   family=None,
+                   results_df=None):
     production_df = production_df.loc[production_df['Net Sales Quantity in KG'] > 0]
-    if family != None:
+    if results_df is not None:
+        production_df = production_df.loc[production_df['Product Family'].isin(results_df['Family'].unique())]
+    elif family != None:
         production_df = production_df.loc[production_df['Product Family'].isin(family)]
     families = production_df['Product Family'].unique()
     colors = ['#636EFA', '#EF553B', '#00CC96', '#AB63FA', '#FFA15A', '#19D3F3',\
@@ -260,11 +264,33 @@ def make_ebit_plot(production_df,
                 size='Net Sales Quantity in KG',
                 color='Product Family',
                 color_discrete_map=color_dic,
-                opacity=1).data:
+                opacity=0.6).data:
             fig.add_trace(
                 data
             ),
+    if results_df is not None:
+        ### the new way w/ family discernment
+        new_df = pd.DataFrame()
+        for index in results_df.index:
+            x = production_df.loc[(production_df['Product Family'] == results_df.iloc[index]['Family']) &
+                        (production_df[results_df.iloc[index]['Descriptor']] == results_df.iloc[index]['Group'])]
+            x['color'] = next(colors_cycle) # for line shapes
+            new_df = pd.concat([new_df, x])
+            new_df = new_df.reset_index(drop=True)
+        shapes=[]
 
+        for index, i in enumerate(new_df['product']):
+            shapes.append({'type': 'line',
+                           'xref': 'x',
+                           'yref': 'y',
+                           'x0': i,
+                           'y0': -4e5,
+                           'x1': i,
+                           'y1': 4e5,
+                           'line':dict(
+                               dash="dot",
+                               color=new_df['color'][index],)})
+        fig.update_layout(shapes=shapes)
 
     elif select != None:
         color_dic = {'{}'.format(i): '{}'.format(j) for i, j  in zip(select,
@@ -288,6 +314,8 @@ def make_ebit_plot(production_df,
         elif sort == 'Worst':
             local_df = local_df
 
+
+            ### the old way w/o family discernment
 
         new_df = pd.DataFrame()
         if descriptors != None:
@@ -313,8 +341,8 @@ def make_ebit_plot(production_df,
                                color=new_df['color'][index],)})
         fig.update_layout(shapes=shapes)
     fig.update_layout({
-            "plot_bgcolor": "#F9F9F9",
-            "paper_bgcolor": "#F9F9F9",
+            "plot_bgcolor": "#FFFFFF",
+            "paper_bgcolor": "#FFFFFF",
             "title": 'Adjusted EBITDA by Product Family',
             "yaxis.title": "EBITDA (€)",
             "height": 500,
@@ -328,310 +356,49 @@ def make_ebit_plot(production_df,
             "xaxis.tickfont.size": 8,
             })
     return fig
+search_bar = dbc.Row(
+    [
+        dbc.Col(html.Img(src='assets/mfg_logo.png', height="30px")),
+    ],
+    no_gutters=True,
+    className="ml-auto flex-nowrap mt-3 mt-md-0",
+    align="center",
+)
 
-def calculate_overlap(lines=['E27', 'E26']):
-    path=['Product group', 'Polymer', 'Base Type', 'Additional Treatment']
+NAVBAR = dbc.Navbar(
+    [
+            dbc.Row(
+                [
+                    dbc.Col(html.Img(src='assets/caravel_logo.png', height="30px")),
+                    # dbc.Col(dbc.NavbarBrand("Product Margin Analysis")),
+                ],
+                align="center",
+                no_gutters=True,
+            ),
+        dbc.Collapse(search_bar, id="navbar-collapse", navbar=True),
+    ],
+    color="light",
+    dark=False,
+    sticky='top',
+)
 
-    line1 = oee.loc[oee['Line'].isin([lines[0]])].groupby(path)\
-                    ['Quantity Good'].sum()
-    line2 = oee.loc[oee['Line'].isin([lines[1]])].groupby(path)\
-                    ['Quantity Good'].sum()
-
-    set1 = set(line1.index)
-    set2 = set(line2.index)
-
-    both = set1.intersection(set2)
-    unique = set1.union(set2) - both
-
-    kg_overlap = (line1.loc[list(both)].sum() + line2.loc[list(both)].sum()) /\
-    (line1.sum() + line2.sum())
-    return kg_overlap*100
-
-def make_product_sunburst(lines=['E27', 'E26']):
-    fig = px.sunburst(oee.loc[oee['Line'].isin(lines)],
-        path=['Product group', 'Polymer', 'Base Type', 'Additional Treatment',\
-                'Line'],
-        color='Line')
-    overlap = calculate_overlap(lines)
-    fig.update_layout({
-                 "plot_bgcolor": "#F9F9F9",
-                 "paper_bgcolor": "#F9F9F9",
-                 "height": 500,
-                 "margin": dict(
-                        l=0,
-                        r=0,
-                        b=0,
-                        t=30,
-                        pad=4
-    ),
-                 "title": "Product Overlap {:.1f}%: {}, {}".format(overlap,
-                                                            lines[0], lines[1]),
-     })
-    return fig
-
-def compute_distribution_results(line='K40', pareto='Product', toggle='Yield'):
-
-    if line != 'All Lines':
-        plot = oee.loc[oee['Line'] == line]
-    else:
-        plot = oee
-    plot = plot.sort_values('Thickness Material A')
-    plot['Thickness Material A'] = pd.to_numeric(plot['Thickness Material A'])
-    cut=3
-    plot = plot.groupby(pareto).filter(lambda x : (x[pareto].count()>=cut).any())
-
-    low_mean = plot.groupby(pareto)[toggle].mean().sort_values().reset_index().iloc[0][0]
-    high_mean = plot.groupby(pareto)[toggle].mean().sort_values().reset_index().iloc[-1][0]
-    low_std = plot.groupby(pareto)[toggle].std().sort_values().reset_index().iloc[0][0]
-    high_std = plot.groupby(pareto)[toggle].std().sort_values().reset_index().iloc[-1][0]
-
-    low_mean_val = plot.groupby(pareto)[toggle].mean().sort_values().reset_index().iloc[0][1]
-    high_mean_val = plot.groupby(pareto)[toggle].mean().sort_values().reset_index().iloc[-1][1]
-    low_std_val = plot.groupby(pareto)[toggle].std().sort_values().reset_index().iloc[0][1]
-    high_std_val = plot.groupby(pareto)[toggle].std().sort_values().reset_index().iloc[-1][1]
-
-    if toggle == 'Rate':
-        units = ' kg/hr'
-    elif toggle == 'Yield':
-        units = ''
-    if pareto == 'Thickness Material A':
-        pareto = 'Thickness'
-
-    return "{}".format(high_mean), \
-           "Highest Avg {} {} ({:.1f}{})".format(toggle, pareto, high_mean_val, units), \
-           "{}".format(low_mean), \
-           "Lowest Avg {} {} ({:.1f}{})".format(toggle, pareto, low_mean_val, units), \
-           "{}".format(low_std), \
-           "Highest Variability {} {} ({:.1f}{})".format(toggle, pareto, high_std_val, units), \
-           "{}".format(high_std), \
-           "Lowest Variability {} {} ({:.1f}{})".format(toggle, pareto, low_std_val, units)
-
-def make_metric_plot(line='K40', pareto='Product', marginal='histogram',
-                     toggle='Yield'):
-    if line != 'All Lines':
-        plot = oee.loc[oee['Line'] == line]
-    else:
-        plot = oee
-    plot = plot.sort_values('Thickness Material A')
-    plot['Thickness Material A'] = pd.to_numeric(plot['Thickness Material A'])
-    mean_of_the_std = plot.groupby(pareto)[toggle].std().mean()
-    if marginal == 'none':
-        fig = px.density_contour(plot, x='Rate', y='Yield',
-                     color=pareto)
-    else:
-        fig = px.density_contour(plot, x='Rate', y='Yield',
-                 color=pareto, marginal_x=marginal, marginal_y=marginal)
-    fig.update_layout({
-                 "plot_bgcolor": "#F9F9F9",
-                 "paper_bgcolor": "#F9F9F9",
-                 "height": 750,
-                 "title": "{}, {:.2f} Average {} Variance By {}".\
-                    format(line, mean_of_the_std, toggle, pareto),
-     })
-    return fig
-
-def make_utilization_plot():
-    downdays = pd.DataFrame(oee.groupby('Line')['Uptime'].sum().sort_values()/24)
-    downdays.columns = ['Unutilized Days, 2019']
-    fig = px.bar(downdays, y=downdays.index, x='Unutilized Days, 2019',
-           orientation='h', color=downdays.index)
-    fig.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "paper_bgcolor": "#F9F9F9",
-                "title": "Utilization, All Lines (Note: data did not "\
-                        "distinguish between downtime and utilization)",
-                "height": 400,
-    })
-    return fig
-
-def find_quantile(to_remove_line='E26', to_add_line='E27',
-                  metrics=['Rate', 'Yield', 'Uptime'],
-                  uptime=None):
-    if type(to_add_line) == str:
-        to_add_line = [to_add_line]
-    to_remove_kg = annual_operating.loc[to_remove_line]['Quantity Good']
-    to_remove_rates = res.loc[to_remove_line].unstack()['Rate']
-    to_remove_yields = res.loc[to_remove_line].unstack()['Yield']
-    target_days_needed = pd.DataFrame(to_remove_kg).values / to_remove_yields\
-                            / to_remove_rates / 24
-    target_days_needed = target_days_needed.T
-    target_days_needed['Total'] = target_days_needed.sum(axis=1)
-
-    target_data = opportunity.loc['Additional Days'].loc[to_add_line].unstack()\
-                    [metrics].sum(axis=1)
-    target = pd.DataFrame(target_data).unstack().T.loc[0]
-
-    if uptime != None:
-        target[to_add_line] = target[to_add_line] + uptime
-
-    final = pd.merge(target_days_needed, target, left_index=True, right_index=True)
-    quantile = (abs(final[to_add_line].sum(axis=1) - final['Total'])).idxmin()
-    return quantile, final.iloc[:-1]
-
-def make_consolidate_plot(remove='E26', add='E27',
-                          metrics=['Rate', 'Yield', 'Uptime'],
-                          uptime=None):
-    quantile, final = find_quantile(remove, add, metrics, uptime)
-    fig = go.Figure(data=[
-    go.Bar(name='Days Available', x=final.index, y=final[add]),
-    go.Bar(name='Days Needed', x=final.index, y=final['Total'])
-    ])
-    if uptime != None:
-        title = "Quantile-Performance Target: {} + {} Uptime Days"\
-            .format(quantile, uptime)
-    else:
-        title = "Quantile-Performance Target: {}".format(quantile)
-    # Change the bar mode
-    fig.update_layout(barmode='group',
-                  yaxis=dict(title="Days"),
-                   xaxis=dict(title="Quantile"))
-    fig.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "paper_bgcolor": "#F9F9F9",
-                "title": title,
-                "margin": dict(
-                       l=0,
-                       r=0,
-                       b=0,
-                       t=30,
-                       pad=4
-   ),
-    })
-    return fig
-
-def pareto_product_family(quantile=0.9, clickData=None):
-    if clickData != None:
-        line = clickData["points"][0]["y"]
-    else:
-        line = 'K40'
-    data = opportunity.reorder_levels([0,2,1,3]).sort_index().\
-            loc['Additional Days', quantile, line]
-    total = data.sum().sum()
-    cols = data.columns
-    bar_fig = []
-    for col in cols:
-        bar_fig.append(
-        go.Bar(
-        name=col,
-        orientation="h",
-        y=[str(i) for i in data.index],
-        x=data[col],
-        customdata=[col],
-        )
-        )
-
-    figure = go.Figure(
-        data=bar_fig,
-        layout=dict(
-            barmode="group",
-            yaxis_type="category",
-            yaxis=dict(title="Product Group"),
-            xaxis=dict(title="Days"),
-            title="{}: {:.1f} days of opportunity".format(line,total),
-            plot_bgcolor="#F9F9F9",
-            paper_bgcolor="#F9F9F9"
-        )
-    )
-    figure.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "paper_bgcolor": "#F9F9F9",
-    })
-    return figure
-
-def make_days_plot(quantile=0.9):
-    data = opportunity.reorder_levels([0,2,1,3]).sort_index()\
-                .loc['Additional Days', quantile].groupby('Line').sum()
-    cols = ['Rate', 'Yield', 'Uptime']
-    data['Total'] = data.sum(axis=1)
-    data = data.sort_values(by='Total')
-    bar_fig = []
-    for col in cols:
-        bar_fig.append(
-        go.Bar(
-        name=col,
-        orientation="h",
-        y=[str(i) for i in data.index],
-        x=data[col],
-        customdata=[col]
-        )
-    )
-
-    figure = go.Figure(
-        data=bar_fig,
-        layout=dict(
-            barmode="stack",
-            yaxis_type="category",
-            yaxis=dict(title="Line"),
-            xaxis=dict(title="Days"),
-            title="Annualized Opportunity",
-            plot_bgcolor="#F9F9F9",
-            paper_bgcolor="#F9F9F9"
-        )
-    )
-    figure.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "paper_bgcolor": "#F9F9F9",
-    })
-    return figure
-
-def make_culprits():
-    fig = px.bar(stats, x='group', y='score', color='metric',
-        barmode='group')
-    fig.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "paper_bgcolor": "#F9F9F9",
-                "xaxis.title": "Contingency Table Score",
-    })
-    return fig
-
-def pie_line(clickData=None):
-    if clickData != None:
-        line = clickData["points"][0]["y"]
-    else:
-        line = 'K40'
-    data = annual_operating.loc[line]
-    total = data['Net Quantity Produced'].sum()/1e6
-    fig = px.pie(data, values='Net Quantity Produced', names=data.index,
-                title='Production distribution 2019 ({:.1f}M kg)'.format(total))
-    fig.update_layout({
-                "plot_bgcolor": "#F9F9F9",
-                "paper_bgcolor": "#F9F9F9",
-    })
-    return fig
-
-def calculate_opportunity(quantile=0.9):
-    data = opportunity.reorder_levels([0,2,1,3]).sort_index()\
-                .loc['Additional Days', quantile].groupby('Line').sum()
-    data['Total'] = data.sum(axis=1)
-    return "{:.1f}".format(data.sum()[3]), \
-            "{:.1f}".format(data.sum()[0]), \
-            "{:.1f}".format(data.sum()[1]), \
-            "{:.1f}".format(data.sum()[2])
-# Describe the layout/ UI of the app
-
-app.layout = html.Div([
+app.layout = html.Div([NAVBAR,
+html.Div(className='pretty_container', children=[
+# html.Div([
+#     html.Div([
+#         html.H1('Caravel Tier One Assessment Demo'),
+#         ], className='nine columns',
+#         ),
+#     ], className='row flex-display',
+#     ),
+# html.Div([
+#     html.Div([
+#         html.H3(["Product Margin Optimization"]),
+#         ], className='nine columns',
+#         ),
+#     ], className='row flex-display',
+#     ),
 html.Div([
-    html.Div([
-        html.H1('Caravel Tier One Assessment Demo'),
-        ], className='nine columns',
-        ),
-    ], className='row flex-display',
-    ),
-html.Div([
-    html.Div([
-        # html.H2('Company Name'),
-        ], className='nine columns',
-        ),
-    ], className='row flex-display',
-    ),
-html.Div([
-    html.Div([
-        html.H3(["Product Margin Optimization"]),
-        ], className='nine columns',
-        ),
-], className='row flex-display',
-),
-    html.Div([
         html.Div([
             html.H6(id='margin-new-rev'), html.P('Adjusted EBITDA')
         ], className='mini_container',
@@ -650,18 +417,25 @@ html.Div([
         ),
     ], className='row container-display',
     ),
+html.Div([
     html.Div([
-        html.Div([
+    dcc.Tabs(id='tabs-control', value='tab-1', children=[
+        dcc.Tab(label='Visualization', value='tab-1', children=[
+            html.P('Presets',
+                style={'margin-bottom': '20px',
+                   'margin-top': '20px'},),
             dcc.RadioItems(id='preset_view',
-                            options=[{'label': 'INTERACTIVE', 'value': 'INTERACTIVE'},
-                                    {'label': 'VIEW 1', 'value': 'VIEW 1'},
-                                    {'label': 'VIEW 2', 'value': 'VIEW 2'},
-                                    {'label': 'VIEW 3', 'value': 'VIEW 3'}],
+                            options=[{'label': 'INTERACTIVE  ', 'value': 'INTERACTIVE'},
+                                    {'label': 'VIEW 1  ', 'value': 'VIEW 1'},
+                                    {'label': 'VIEW 2  ', 'value': 'VIEW 2'},
+                                    {'label': 'VIEW 3  ', 'value': 'VIEW 3'}],
                             value='INTERACTIVE',
                             labelStyle={'display': 'inline-block'},
-                        style={'margin-bottom': '20px'}),
-            html.P(' '),
-            html.P(' '),
+                            style={'margin-bottom': '20px',
+                                   'margin-top': '20px'},
+                            inputStyle={"margin-right": "5px",
+                                   "margin-left": "20px"},
+                            className='dcc_control'),
             html.P('Families'),
             dcc.Dropdown(id='family_dropdown',
                          options=[{'label': i, 'value': i} for i in
@@ -694,7 +468,7 @@ html.Div([
                         step=1,
                         value=[0,10],
             ),
-            html.P('Sort by:'),
+            html.P('Sort by'),
             dcc.RadioItems(
                         id='sort',
                         options=[{'label': i, 'value': j} for i, j in \
@@ -702,33 +476,86 @@ html.Div([
                                 ['High EBITDA', 'Best']]],
                         value='Best',
                         labelStyle={'display': 'inline-block'},
-                        style={"margin-bottom": "10px"},),
-            html.P('Toggle Violin/Descriptor Data onto EBITDA by Product Family:'),
+                        style={"margin-bottom": "10px"},
+                        inputStyle={"margin-right": "5px",
+                               "margin-left": "20px"},),
+            html.P('Toggle Violin/Descriptor Data onto EBITDA by Product Family'),
             daq.BooleanSwitch(
               id='daq-violin',
               on=False,
               style={"margin-bottom": "10px", "margin-left": "0px",
               'display': 'inline-block'}),
-                ], className='mini_container',
-                    id='descriptorBlock',
-                ),
-            html.Div([
-                dcc.Graph(
-                            id='ebit_plot',
-                            figure=make_ebit_plot(production_df)),
-                ], className='mini_container',
-                   id='ebit-family-block'
-                ),
-        ], className='row container-display',
+              ]),
+    dcc.Tab(label='Analytics', value='tab-2', children=[
+        html.Div([
+        html.P('Families',
+        style={"margin-top": "20px"}),
+        dcc.Dropdown(id='family_dropdown_analytics',
+                     options=[{'label': i, 'value': i} for i in
+                                production_df['Product Family'].unique()],
+                     # value=production_df['Product Family'].unique(),
+                     value=['Shrink Sleeve', 'Cards Core'],
+                     multi=True,
+                     className="dcc_control"),
+        html.P('Descriptors'),
+        dcc.Dropdown(id='descriptor_dropdown_analytics',
+                     options=[{'label': 'Thickness', 'value': 'Thickness Material A'},
+                             {'label': 'Width', 'value': 'Width Material Attri'},
+                             {'label': 'Base Type', 'value': 'Base Type'},
+                             {'label': 'Additional Treatment', 'value': 'Additional Treatment'},
+                             {'label': 'Color', 'value': 'Color Group'},
+                             {'label': 'Product Group', 'value': 'Product Group'},
+                             {'label': 'Base Polymer', 'value': 'Base Polymer'},
+                             {'label': 'Product Family', 'value': 'Product Family'}],
+                     # value=['Thickness Material A',
+                     #        'Width Material Attri', 'Base Type',
+                     #        'Additional Treatment', 'Color Group',
+                     #        'Product Group',
+                     #        'Base Polymer', 'Product Family'],
+                     value=['Base Polymer', 'Base Type'],
+                     multi=True,
+                     className="dcc_control",
+                     style={'margin-bottom': '10px'}),
+        html.Button('Find opportunity',
+                    id='opportunity-button',
+                    style={'textAlign': 'center',
+                           'margin-bottom': '10px'}),
+            ]),
+            ]),
+        ]),
+        ], className='mini_container',
+           id='descriptorBlock',
         ),
-
+    html.Div([
+        dcc.Graph(id='ebit_plot',
+                  figure=make_ebit_plot(production_df)),
+        ], className='mini_container',
+           id='ebit-family-block'
+        ),
+], className='row container-display',
+),
     html.Div([
         html.Div([
             dcc.Graph(
                         id='violin_plot',
                         figure=make_violin_plot()),
-                ], className='mini_container',
-                   id='violin',
+            html.Div([
+            dcc.Loading(
+                id="loading-1",
+                type="default",
+                children=dash_table.DataTable(id='opportunity-table',
+                                 row_selectable='multi',),),
+                    ],
+                    id='opportunity-table-block',
+                    style={'margin-left': '2%',
+                           'margin-right': '2%',
+                           'max-height': '700px',
+                           'max-width': '600px',
+                           'overflow': 'scroll',
+                           'display': 'none'}),
+            ], className='mini_container',
+               id='violin',
+               style={'display': 'block'},
                 ),
         html.Div([
             dcc.Dropdown(id='length_width_dropdown',
@@ -745,12 +572,30 @@ html.Div([
                    id='sunburst',
                 ),
             ], className='row container-display',
-               style={'margin-bottom': '50px'},
+               style={'margin-bottom': '10px'},
             ),
-    ], className='pretty container'
-    )
+    ], #className='pretty container'
+    ),
+],
+)
+app.config.suppress_callback_exceptions = True
 
-app.config.suppress_callback_exceptions = False
+@app.callback(
+    [Output('opportunity-table', 'data'),
+    Output('opportunity-table', 'columns'),],
+    [Input('descriptor_dropdown_analytics', 'value'),
+     Input('family_dropdown_analytics', 'value'),
+     Input('opportunity-button', 'n_clicks')]
+)
+def display_opportunity_results(descriptors, families, button):
+    ctx = dash.callback_context
+    if ctx.triggered[0]['prop_id'] == 'opportunity-button.n_clicks':
+        results = maximize_ebitda(families, descriptors)
+        results[results.columns[3:]] = np.round(results[results.columns[3:]].astype(float))
+        columns=[{"name": i, "id": i} for i in results.columns]
+        return results.to_dict('rows'), columns
+    else:
+        return None
 
 @app.callback(
     [Output('descriptor_dropdown', 'value'),
@@ -781,20 +626,31 @@ def update_preset_view(value, options):
      Input('sort', 'value'),
      Input('select', 'value'),
      Input('descriptor_dropdown', 'value'),
-     Input('family_dropdown', 'value'),])
-def display_sunburst_plot(clickData, toAdd, sort, select, descriptors, families):
-    stat_df = available_indicator_dropdown(families, descriptors)
-    if sort == 'Best':
-        local_df = stat_df.sort_values('score', ascending=False)
+     Input('family_dropdown', 'value'),
+     Input('opportunity-table', 'derived_viewport_selected_rows'),
+     Input('opportunity-table', 'data'),
+     Input('tabs-control', 'value')])
+def display_sunburst_plot(clickData, toAdd, sort, select, descriptors, families,
+                            rows, data, tab):
+    if tab == 'tab-1':
+        stat_df = available_indicator_dropdown(families, descriptors)
+        if sort == 'Best':
+            local_df = stat_df.sort_values('score', ascending=False)
+            local_df = local_df.reset_index(drop=True)
+        else:
+            local_df = stat_df
+        if descriptors != None:
+            local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
         local_df = local_df.reset_index(drop=True)
-    else:
-        local_df = stat_df
-    if descriptors != None:
-        local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
-    local_df = local_df.reset_index(drop=True)
-    col = local_df['descriptor'][select[0]]
-    val = local_df['group'][select[0]]
-    return make_sunburst_plot(clickData, toAdd, col, val)
+        col = local_df['descriptor'][select[0]]
+        val = local_df['group'][select[0]]
+        return make_sunburst_plot(clickData, toAdd, col, val)
+    elif tab == 'tab-2':
+        results_df = pd.DataFrame(data)
+        results_df = results_df.iloc[rows].reset_index(drop=True)
+        col=results_df.iloc[-1]['Descriptor']
+        val=results_df.iloc[-1]['Group']
+        return make_sunburst_plot(col=col, val=val)
 
 @app.callback(
     Output('descriptor-number', 'children'),
@@ -804,14 +660,27 @@ def display_descriptor_number(select):
     return "Number of Descriptors: {}".format(select[1]-select[0])
 
 @app.callback(
-    Output('violin_plot', 'figure'),
+    [Output('violin_plot', 'figure'),
+     Output('violin_plot', 'style'),
+     Output('opportunity-table-block', 'style')],
     [Input('sort', 'value'),
     Input('select', 'value'),
     Input('descriptor_dropdown', 'value'),
-    Input('family_dropdown', 'value'),]
+    Input('family_dropdown', 'value'),
+    Input('tabs-control', 'value')]
 )
-def display_violin_plot(sort, select, descriptors, families):
-    return make_violin_plot(sort, select, descriptors, families)
+def display_violin_plot(sort, select, descriptors, families, tab):
+
+    if tab == 'tab-1':
+        return make_violin_plot(sort, select, descriptors, families),\
+            {'display': 'block'}, {'display': 'none'}
+    else:
+        return make_violin_plot(sort, select, descriptors, families),\
+            {'display': 'none'}, \
+            {'max-height': '500px',
+               'overflow': 'scroll',
+               'display': 'block',
+               'padding': '0px 20px 20px 20px'}
 
 @app.callback(
     Output('ebit_plot', 'figure'),
@@ -819,15 +688,24 @@ def display_violin_plot(sort, select, descriptors, families):
     Input('select', 'value'),
     Input('descriptor_dropdown', 'value'),
     Input('daq-violin', 'on'),
-    Input('family_dropdown', 'value'),]
+    Input('family_dropdown', 'value'),
+    Input('opportunity-table', 'derived_viewport_selected_rows'),
+    Input('opportunity-table', 'data'),
+    Input('tabs-control', 'value')]
 )
-def display_ebit_plot(sort, select, descriptors, switch, families):
-    if switch == True:
-        select = list(np.arange(select[0],select[1]))
-        return make_ebit_plot(production_df, select, sort=sort,
-            descriptors=descriptors, family=families)
-    else:
-        return make_ebit_plot(production_df, family=families)
+def display_ebit_plot(sort, select, descriptors, switch, families, rows, data,
+                      tab):
+    if tab == 'tab-1':
+        if switch == True:
+            select = list(np.arange(select[0],select[1]))
+            return make_ebit_plot(production_df, select, sort=sort,
+                descriptors=descriptors, family=families)
+        else:
+            return make_ebit_plot(production_df, family=families)
+    elif tab == 'tab-2':
+        results_df = pd.DataFrame(data)
+        results_df = results_df.iloc[rows].reset_index(drop=True)
+        return make_ebit_plot(production_df, results_df=results_df)
 
 @app.callback(
     [Output('margin-new-rev', 'children'),
@@ -836,10 +714,18 @@ def display_ebit_plot(sort, select, descriptors, switch, families):
     [Input('sort', 'value'),
     Input('select', 'value'),
     Input('descriptor_dropdown', 'value'),
-    Input('family_dropdown', 'value'),]
+    Input('family_dropdown', 'value'),
+    Input('opportunity-table', 'derived_viewport_selected_rows'),
+    Input('opportunity-table', 'data'),
+    Input('tabs-control', 'value')]
 )
-def display_opportunity(sort, select, descriptors, families):
-    return calculate_margin_opportunity(sort, select, descriptors, families)
+def display_opportunity(sort, select, descriptors, families, rows, data, tab):
+    if tab == 'tab-1':
+        return calculate_margin_opportunity(sort, select, descriptors, families)
+    elif tab == 'tab-2':
+        results_df = pd.DataFrame(data)
+        results_df = results_df.iloc[rows].reset_index(drop=True)
+        return calculate_margin_opportunity(results_df=results_df)
 
 @app.callback(
     [Output('select', 'max'),
@@ -852,7 +738,6 @@ def update_descriptor_choices(descriptors, preset_view_status, families):
     min_val = 0
     max_value = 53
     ctx = dash.callback_context
-    print(ctx.triggered)
     if preset_view_status == 'VIEW 1':
         value = 1
         max_value = 2

@@ -5,7 +5,7 @@ fmini.js-plotly-plot .plotly .modebar {
 
 body {
   background-color: #f2f2f2;
-  margin: 5%;
+  /* margin: 5%; */
 }
 
 .two.columns {
@@ -18,12 +18,14 @@ body {
 }
 
 .pretty_container {
+  margin-left: 5%;
+  margin-right: 5%;
   border-radius: 5px;
-  background-color: #f9f9f9;
+  /* background-color: #FFFFFF;
   margin: 10px;
   padding: 15px;
   position: relative;
-  box-shadow: 2px 2px 2px lightgrey;
+  box-shadow: 2px 2px 2px lightgrey; */
 }
 
 .bare_container {
@@ -95,7 +97,7 @@ body {
 
 .mini_container {
   border-radius: 5px;
-  background-color: #f9f9f9;
+  background-color: #FFFFFF;
   margin: 10px;
   padding: 15px;
   position: relative;
@@ -156,7 +158,7 @@ body {
   flex: 3;
 }
 #ebit-family-block {
-  flex: 5;
+  flex: 2;
   position: relative;
 }
 
@@ -248,7 +250,7 @@ body {
 }
 
 #descriptorBlock {
-  flex: 2;
+  flex: 1;
 }
 
 #bubble-controls {
