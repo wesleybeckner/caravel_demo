@@ -192,7 +192,7 @@ def make_violin_plot(sort='Worst', select=[0,10], descriptors=None, families=Non
                 "paper_bgcolor": "#FFFFFF",
                 "title": 'Adjusted EBITDA by Product Descriptor (Median in Legend)',
                 "yaxis.title": "EBITDA (€)",
-                "height": 400,
+                # "height": 400,
                 "margin": dict(
                        l=0,
                        r=0,
@@ -223,7 +223,7 @@ def make_sunburst_plot(clickData=None, toAdd=None, col=None, val=None):
                 "plot_bgcolor": "#FFFFFF",
                 "title": '{}: {}'.format(col,val),
                 "paper_bgcolor": "#FFFFFF",
-                "height": 400,
+                # "height": 400,
                 "margin": dict(
                        l=0,
                        r=0,
@@ -345,7 +345,7 @@ def make_ebit_plot(production_df,
             "paper_bgcolor": "#FFFFFF",
             "title": 'Adjusted EBITDA by Product Family',
             "yaxis.title": "EBITDA (€)",
-            "height": 500,
+            "height": 600,
             "margin": dict(
                    l=0,
                    r=0,
@@ -356,9 +356,48 @@ def make_ebit_plot(production_df,
             "xaxis.tickfont.size": 8,
             })
     return fig
+
+ABOUT = html.Div([dcc.Markdown('''
+
+###### This analysis correlates key product attributes (descriptors) with product margin (EBITDA) ######
+
+**KPIs:**
+
+Calculate adjusted EBITDA/products/volume from either: 1) eliminating products from 2019 production if ‘Sort by’ = ‘Low EBITDA’, or 2) adding products to an empty production schedule if ‘Sort by’ = ‘High EBITDA’
+
+**Charts:**
+
+EBITDA by Product Family Bubble Chart: Products are grouped by family then rank ordered according to EBITDA. Bubble size is by order volume (kg)
+
+Product Descriptor Violin Chart: Distributions for selected descriptors are shown in a violin plot. Read more about violin plots [here](https://en.wikipedia.org/wiki/Violin_plot)
+
+Descriptor Sunburst Chart: Displays product breakdown for a given descriptor selected in the violin plot. Read from inner to outer rings, the ‘pie’ slices in each ring depict the volume break down for that level in terms of order numbers; classes of product become more specific moving from the inner to outer rings. Color code indicates EBITDA for products described by that level in the pie. Outer rings can toggle width/thickness attributes on and off
+
+**Controls:**
+
+Families & Descriptors: select families/descriptors upon which to perform analysis/visualization
+
+Visualization Tab:
+
+Presets: Interactive allows user selection of various settings, Opportunities 1 & 2 show margin opportunities in the Shrink Sleeve and Cards Core families, respectively
+
+Sort by: if set to ‘High EBITDA’, range bar is sorted from positive to negative correlation with EBITDA; if set to ‘Low EBITDA’, range bar is sorted form negative to positive correlation with EBITDA
+
+Number of Descriptors: range bar selects sorted descriptors. Selection updates plots and KPIs with products described by those descriptors.
+
+Toggle Violin: overlays selected products onto the EBITDA by Product Family chart
+
+Analytics Tab:
+
+Find Opportunity: Algorithm calculates % EBITDA increase by eliminating products according to family/descriptor selection. Table is returned that is sorted from high to low % EBITDA increase.
+
+''')],style={'margin-top': '20px',
+             'max-height': '500px',
+             'overflow': 'scroll'})
+
 search_bar = dbc.Row(
     [
-        dbc.Col(html.Img(src='assets/mfg_logo.png', height="30px")),
+        dbc.Col(html.Img(src='assets/mfg_logo.png', height="40px")),
     ],
     no_gutters=True,
     className="ml-auto flex-nowrap mt-3 mt-md-0",
@@ -369,7 +408,7 @@ NAVBAR = dbc.Navbar(
     [
             dbc.Row(
                 [
-                    dbc.Col(html.Img(src='assets/caravel_logo.png', height="30px")),
+                    dbc.Col(html.Img(src='assets/caravel_logo.png', height="40px")),
                     # dbc.Col(dbc.NavbarBrand("Product Margin Analysis")),
                 ],
                 align="center",
@@ -384,34 +423,20 @@ NAVBAR = dbc.Navbar(
 
 app.layout = html.Div([NAVBAR,
 html.Div(className='pretty_container', children=[
-# html.Div([
-#     html.Div([
-#         html.H1('Caravel Tier One Assessment Demo'),
-#         ], className='nine columns',
-#         ),
-#     ], className='row flex-display',
-#     ),
-# html.Div([
-#     html.Div([
-#         html.H3(["Product Margin Optimization"]),
-#         ], className='nine columns',
-#         ),
-#     ], className='row flex-display',
-#     ),
 html.Div([
         html.Div([
-            html.H6(id='margin-new-rev'), html.P('Adjusted EBITDA')
+            html.H4(id='margin-new-rev'), html.H6('Adjusted EBITDA')
         ], className='mini_container',
            id='margin-rev',
 
         ),
         html.Div([
-            html.H6(id='margin-new-rev-percent'), html.P('Unique Products')
+            html.H4(id='margin-new-rev-percent'), html.H6('Unique Products')
         ], className='mini_container',
            id='margin-rev-percent',
         ),
         html.Div([
-            html.H6(id='margin-new-products'), html.P('Volume')
+            html.H4(id='margin-new-products'), html.H6('Volume')
         ], className='mini_container',
            id='margin-products',
         ),
@@ -420,15 +445,16 @@ html.Div([
 html.Div([
     html.Div([
     dcc.Tabs(id='tabs-control', value='tab-1', children=[
+        dcc.Tab(label='About', value='tab-3', children=[ABOUT]),
         dcc.Tab(label='Visualization', value='tab-1', children=[
+            html.Div([
             html.P('Presets',
                 style={'margin-bottom': '20px',
                    'margin-top': '20px'},),
             dcc.RadioItems(id='preset_view',
                             options=[{'label': 'INTERACTIVE  ', 'value': 'INTERACTIVE'},
-                                    {'label': 'VIEW 1  ', 'value': 'VIEW 1'},
-                                    {'label': 'VIEW 2  ', 'value': 'VIEW 2'},
-                                    {'label': 'VIEW 3  ', 'value': 'VIEW 3'}],
+                                    {'label': 'OPPORTUNITY 1  ', 'value': 'OPPORTUNITY 1'},
+                                    {'label': 'OPPORTUNITY 2  ', 'value': 'OPPORTUNITY 2'}],
                             value='INTERACTIVE',
                             labelStyle={'display': 'inline-block'},
                             style={'margin-bottom': '20px',
@@ -460,6 +486,17 @@ html.Div([
                                 'Base Polymer', 'Product Family'],
                          multi=True,
                          className="dcc_control"),
+            html.P('Sort by'),
+            dcc.RadioItems(
+                        id='sort',
+                        options=[{'label': i, 'value': j} for i, j in \
+                                [['Low EBITDA', 'Worst'],
+                                ['High EBITDA', 'Best']]],
+                        value='Worst',
+                        labelStyle={'display': 'inline-block'},
+                        style={"margin-bottom": "10px"},
+                        inputStyle={"margin-right": "5px",
+                               "margin-left": "20px"},),
             html.P('Number of Descriptors:', id='descriptor-number'),
             dcc.RangeSlider(
                         id='select',
@@ -468,25 +505,17 @@ html.Div([
                         step=1,
                         value=[0,10],
             ),
-            html.P('Sort by'),
-            dcc.RadioItems(
-                        id='sort',
-                        options=[{'label': i, 'value': j} for i, j in \
-                                [['Low EBITDA', 'Worst'],
-                                ['High EBITDA', 'Best']]],
-                        value='Best',
-                        labelStyle={'display': 'inline-block'},
-                        style={"margin-bottom": "10px"},
-                        inputStyle={"margin-right": "5px",
-                               "margin-left": "20px"},),
             html.P('Toggle Violin/Descriptor Data onto EBITDA by Product Family'),
             daq.BooleanSwitch(
               id='daq-violin',
               on=False,
               style={"margin-bottom": "10px", "margin-left": "0px",
               'display': 'inline-block'}),
-              ]),
-    dcc.Tab(label='Analytics', value='tab-2', children=[
+              ],style={'max-height': '500px',
+                       'overflow': 'scroll',
+                       'margin-top': '20px'}),
+              ],),
+        dcc.Tab(label='Analytics', value='tab-2', children=[
         html.Div([
         html.P('Families',
         style={"margin-top": "20px"}),
@@ -530,7 +559,8 @@ html.Div([
         dcc.Graph(id='ebit_plot',
                   figure=make_ebit_plot(production_df)),
         ], className='mini_container',
-           id='ebit-family-block'
+           id='ebit-family-block',
+           style={'display': 'block'},
         ),
 ], className='row container-display',
 ),
@@ -602,13 +632,10 @@ def display_opportunity_results(descriptors, families, button):
      Input('descriptor_dropdown', 'options')]
 )
 def update_preset_view(value, options):
-    if value == 'VIEW 1':
+    if value == 'OPPORTUNITY 1':
         return ['{}'.format(options[6]['value']),], True,\
             ['Shrink Sleeve'], 'Worst'
-    elif value == 'VIEW 2':
-        return ['Base Type'], True,\
-            ['Shrink Sleeve'], 'Worst'
-    elif value == 'VIEW 3':
+    elif value == 'OPPORTUNITY 2':
         return ['Base Type'], True,\
             ['Cards Core'], 'Worst'
     else:
@@ -628,7 +655,7 @@ def update_preset_view(value, options):
      Input('tabs-control', 'value')])
 def display_sunburst_plot(clickData, toAdd, sort, select, descriptors, families,
                             rows, data, tab):
-    if tab == 'tab-1':
+    if (tab == 'tab-1') | (tab == 'tab-3'):
         stat_df = available_indicator_dropdown(families, descriptors)
         if sort == 'Best':
             local_df = stat_df.sort_values('score', ascending=False)
@@ -667,7 +694,7 @@ def display_descriptor_number(select):
 )
 def display_violin_plot(sort, select, descriptors, families, tab):
 
-    if tab == 'tab-1':
+    if (tab == 'tab-1') | (tab == 'tab-3'):
         return make_violin_plot(sort, select, descriptors, families),\
             {'display': 'block',
             'width': '95%'}, {'display': 'none'}
@@ -692,7 +719,7 @@ def display_violin_plot(sort, select, descriptors, families, tab):
 )
 def display_ebit_plot(sort, select, descriptors, switch, families, rows, data,
                       tab):
-    if tab == 'tab-1':
+    if (tab == 'tab-1') | (tab == 'tab-3'):
         if switch == True:
             select = list(np.arange(select[0],select[1]))
             return make_ebit_plot(production_df, select, sort=sort,
@@ -717,7 +744,7 @@ def display_ebit_plot(sort, select, descriptors, switch, families, rows, data,
     Input('tabs-control', 'value')]
 )
 def display_opportunity(sort, select, descriptors, families, rows, data, tab):
-    if tab == 'tab-1':
+    if (tab == 'tab-1') | (tab == 'tab-3'):
         return calculate_margin_opportunity(sort, select, descriptors, families)
     elif tab == 'tab-2':
         results_df = pd.DataFrame(data)
@@ -735,13 +762,10 @@ def update_descriptor_choices(descriptors, preset_view_status, families):
     min_val = 0
     max_value = 53
     ctx = dash.callback_context
-    if preset_view_status == 'VIEW 1':
+    if preset_view_status == 'OPPORTUNITY 1':
         value = 1
         max_value = 2
-    elif preset_view_status == 'VIEW 2':
-        value = 2
-        max_value = 2
-    elif preset_view_status == 'VIEW 3':
+    elif preset_view_status == 'OPPORTUNITY 2':
         value = 3
         max_value = 4
         min_val = 0
