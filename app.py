@@ -87,7 +87,7 @@ def maximize_ebitda(families, descriptors):
             results.columns = ['Family', 'Descriptor', 'Group', 'EBITDA', 'EBITDA Delta', '% EBITDA', 'Products',\
                                '% Products', 'Volume', '% Volume']
             results_df = pd.concat([results_df, results])
-    results_df = results_df.loc[results_df['EBITDA Delta'] != 0]
+    results_df = results_df.loc[np.abs(results_df['EBITDA Delta']) > 1]
     results_df = results_df.sort_values('% EBITDA', ascending=False).reset_index(drop=True)
 
     return results_df
@@ -493,8 +493,8 @@ html.Div([
         dcc.Dropdown(id='family_dropdown_analytics',
                      options=[{'label': i, 'value': i} for i in
                                 production_df['Product Family'].unique()],
-                     # value=production_df['Product Family'].unique(),
-                     value=['Shrink Sleeve', 'Cards Core'],
+                     value=production_df['Product Family'].unique(),
+                     # value=['Shrink Sleeve', 'Cards Core'],
                      multi=True,
                      className="dcc_control"),
         html.P('Descriptors'),
