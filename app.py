@@ -547,11 +547,7 @@ html.Div([
                                  row_selectable='multi',),),
                     ],
                     id='opportunity-table-block',
-                    style={'margin-left': '2%',
-                           'margin-right': '2%',
-                           'max-height': '700px',
-                           'max-width': '600px',
-                           'overflow': 'scroll',
+                    style={'overflow': 'scroll',
                            'display': 'none'}),
             ], className='mini_container',
                id='violin',
@@ -662,7 +658,7 @@ def display_descriptor_number(select):
 @app.callback(
     [Output('violin_plot', 'figure'),
      Output('violin_plot', 'style'),
-     Output('opportunity-table-block', 'style')],
+     Output('opportunity-table-block', 'style'),],
     [Input('sort', 'value'),
     Input('select', 'value'),
     Input('descriptor_dropdown', 'value'),
@@ -673,8 +669,9 @@ def display_violin_plot(sort, select, descriptors, families, tab):
 
     if tab == 'tab-1':
         return make_violin_plot(sort, select, descriptors, families),\
-            {'display': 'block'}, {'display': 'none'}
-    else:
+            {'display': 'block',
+            'width': '95%'}, {'display': 'none'}
+    elif tab == 'tab-2':
         return make_violin_plot(sort, select, descriptors, families),\
             {'display': 'none'}, \
             {'max-height': '500px',
