@@ -1,4 +1,7 @@
 # -*- coding: utf-8 -*-
+import base64
+import io
+
 import dash
 import dash_auth
 import dash_table
@@ -7,7 +10,7 @@ import dash_core_components as dcc
 import dash_daq as daq
 import dash_bootstrap_components as dbc
 import dash_html_components as html
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 import plotly.express as px
@@ -17,6 +20,7 @@ import time
 import pandas as pd
 import numpy as np
 import datetime
+from utils import *
 
 VALID_USERNAME_PASSWORD_PAIRS = {
     'caravel': 'assessment'
@@ -34,35 +38,24 @@ auth = dash_auth.BasicAuth(
 
 server = app.server
 
-opportunity = pd.read_csv('data/days.csv', index_col=[0,1,2,3])
-annual_operating = pd.read_csv('data/annual.csv', index_col=[0,1])
-stats = pd.read_csv('data/scores.csv')
-quantiles = np.arange(50,101,1)
-quantiles = quantiles*.01
-quantiles = np.round(quantiles, decimals=2)
-lines = opportunity.index.get_level_values(1).unique()
-asset_metrics = ['Yield', 'Rate', 'Uptime']
-groupby = ['Line', 'Product group']
-oee = pd.read_csv('data/oee.csv')
-oee['From Date/Time'] = pd.to_datetime(oee["From Date/Time"])
-oee['To Date/Time'] = pd.to_datetime(oee["To Date/Time"])
-oee["Run Time"] = pd.to_timedelta(oee["Run Time"])
-oee = oee.loc[oee['Rate'] < 2500]
-res = oee.groupby(groupby)[asset_metrics].quantile(quantiles)
+production_df = pd.read_csv('data/products.csv')
+descriptors = production_df.columns[:8]
+metric = 'Adjusted EBITDA'
+old_products = production_df[descriptors].sum(axis=1).unique().shape[0]
 
-df = pd.read_csv('data/products.csv')
-descriptors = df.columns[:8]
-production_df = df
-production_df['product'] = production_df[descriptors[2:]].agg('-'.join, axis=1)
-production_df = production_df.sort_values(['Product Family', 'EBIT'],
+production_df[descriptors] = production_df[descriptors].astype(str)
+production_df = production_df.sort_values(['Product Family', metric],
                                           ascending=False)
-
 stat_df = pd.read_csv('data/category_stats.csv')
-old_products = df[descriptors].sum(axis=1).unique().shape[0]
-weight_match = pd.read_csv('data/weight_match.csv')
+production_json = production_df.to_json()
+stat_json = stat_df.to_json()
 
-def maximize_ebitda(families, descriptors):
-    local_df = available_indicator_dropdown(families, descriptors)
+
+
+
+def maximize_ebitda(production_df, stat_df, families, descriptors):
+
+    local_df = available_indicator_dropdown(production_df, stat_df, families, descriptors)
     results_df = pd.DataFrame()
     for family in families:
         for index in local_df.index:
@@ -92,7 +85,7 @@ def maximize_ebitda(families, descriptors):
 
     return results_df
 
-def available_indicator_dropdown(families, descriptors):
+def available_indicator_dropdown(production_df, stat_df, families, descriptors):
     df = production_df.loc[production_df['Product Family'].isin(families)]
     local_df = stat_df.loc[stat_df['descriptor'].isin(descriptors)]
     sub_df = pd.DataFrame()
@@ -102,20 +95,22 @@ def available_indicator_dropdown(families, descriptors):
     sub_df = sub_df.reset_index(drop=True)
     return sub_df
 
-def calculate_margin_opportunity(sort='Worst', select=[0,10], descriptors=None,
+def calculate_margin_opportunity(production_df, stat_df, sort='Worst', select=[0,10], descriptors=None,
                                  families=None, results_df=None):
+
     if results_df is not None:
         new_df = production_df
         for index in results_df.index:
             new_df = new_df.loc[~((new_df['Product Family'] == results_df.iloc[index]['Family']) &
                         (new_df[results_df.iloc[index]['Descriptor']] == results_df.iloc[index]['Group']))]
     else:
-        stat_df = available_indicator_dropdown(families, descriptors)
+        local_df = available_indicator_dropdown(production_df, stat_df, families, descriptors)
         if sort == 'Best':
-            local_df = stat_df.sort_values('score', ascending=False)
+            local_df = local_df.sort_values('score', ascending=False)
             local_df = local_df.reset_index(drop=True)
         else:
-            local_df = stat_df
+            local_df = local_df.sort_values('score', ascending=True)
+            local_df = local_df.reset_index(drop=True)
         if descriptors != None:
             local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
         if sort == 'Best':
@@ -139,7 +134,7 @@ def calculate_margin_opportunity(sort='Worst', select=[0,10], descriptors=None,
                         local_df.iloc[index]['group'])]
             wait = new_df
         if families != None:
-            new_df = pd.concat([new_df, production_df.loc[~(df['Product Family'].isin(families))]]) # add back fams
+            new_df = pd.concat([new_df, production_df.loc[~(production_df['Product Family'].isin(families))]]) # add back fams
 
     new_EBITDA = new_df['Adjusted EBITDA'].sum()
     EBITDA_percent = new_EBITDA / production_df['Adjusted EBITDA'].sum() * 100
@@ -160,9 +155,13 @@ def calculate_margin_opportunity(sort='Worst', select=[0,10], descriptors=None,
             "{:.1f} M of {:.1f} M kg ({:.1f}%)".format(new_kg/1e6, old_kg/1e6,
                 kg_percent)
 
-def make_violin_plot(sort='Worst', select=[0,10], descriptors=None, families=None):
+def make_violin_plot(production_df, stat_df, sort='Worst',
+                     select=[0,10], descriptors=None, families=None):
+    production_df = production_df.sort_values(
+        ['Product Family', 'Adjusted EBITDA'],
+        ascending=False).reset_index(drop=True)
     if families != None:
-        local_df = available_indicator_dropdown(families, descriptors)
+        local_df = available_indicator_dropdown(production_df, stat_df, families, descriptors)
     else:
         local_df = stat_df
     if type(descriptors) == str:
@@ -171,14 +170,15 @@ def make_violin_plot(sort='Worst', select=[0,10], descriptors=None, families=Non
         local_df = local_df.sort_values('score', ascending=False)
         local_df = local_df.reset_index(drop=True)
     else:
-        local_df = local_df
+        local_df = local_df.sort_values('score', ascending=True)
+        local_df = local_df.reset_index(drop=True)
     if descriptors != None:
         local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
     fig = go.Figure()
     for index in range(select[0],select[1]):
-        x = df.loc[(df[local_df.iloc[index]['descriptor']] == \
+        x = production_df.loc[(production_df[local_df.iloc[index]['descriptor']] == \
             local_df.iloc[index]['group'])]['Adjusted EBITDA']
-        y = local_df.iloc[index]['descriptor'] + ': ' + df.loc[(df[local_df\
+        y = local_df.iloc[index]['descriptor'] + ': ' + production_df.loc[(production_df[local_df\
             .iloc[index]['descriptor']] == local_df.iloc[index]['group'])]\
             [local_df.iloc[index]['descriptor']]
         name = '€ {:.0f}'.format(x.median())
@@ -202,7 +202,8 @@ def make_violin_plot(sort='Worst', select=[0,10], descriptors=None, families=Non
                 })
     return fig
 
-def make_sunburst_plot(clickData=None, toAdd=None, col=None, val=None):
+def make_sunburst_plot(production_df, clickData=None, toAdd=None, col=None, val=None):
+    production_df[descriptors] = production_df[descriptors].astype(str)
     if clickData != None:
         col = clickData["points"][0]['x'].split(": ")[0]
         val = clickData["points"][0]['x'].split(": ")[1]
@@ -235,12 +236,12 @@ def make_sunburst_plot(clickData=None, toAdd=None, col=None, val=None):
     return fig
 
 def make_ebit_plot(production_df,
+                   stat_df,
                    select=None,
                    sort='Worst',
                    descriptors=None,
                    family=None,
                    results_df=None):
-    production_df = production_df.loc[production_df['Net Sales Quantity in KG'] > 0]
     if results_df is not None:
         production_df = production_df.loc[production_df['Product Family'].isin(results_df['Family'].unique())]
     elif family != None:
@@ -259,7 +260,7 @@ def make_ebit_plot(production_df,
     if select == None:
         for data in px.scatter(
                 production_df,
-                x='product',
+                x='Product',
                 y='Adjusted EBITDA',
                 size='Net Sales Quantity in KG',
                 color='Product Family',
@@ -279,7 +280,7 @@ def make_ebit_plot(production_df,
             new_df = new_df.reset_index(drop=True)
         shapes=[]
 
-        for index, i in enumerate(new_df['product']):
+        for index, i in enumerate(new_df['Product']):
             shapes.append({'type': 'line',
                            'xref': 'x',
                            'yref': 'y',
@@ -297,7 +298,7 @@ def make_ebit_plot(production_df,
                                                                      colors)}
         for data in px.scatter(
                 production_df,
-                x='product',
+                x='Product',
                 y='Adjusted EBITDA',
                 color='Product Family',
                 size='Net Sales Quantity in KG',
@@ -308,11 +309,13 @@ def make_ebit_plot(production_df,
             )
 
 
-        local_df = available_indicator_dropdown(families, descriptors)
+        local_df = available_indicator_dropdown(production_df, stat_df, families, descriptors)
         if sort == 'Best':
             local_df = local_df.sort_values('score', ascending=False)
-        elif sort == 'Worst':
-            local_df = local_df
+            local_df = local_df.reset_index(drop=True)
+        else:
+            local_df = local_df.sort_values('score', ascending=True)
+            local_df = local_df.reset_index(drop=True)
 
 
             ### the old way w/o family discernment
@@ -328,7 +331,7 @@ def make_ebit_plot(production_df,
             new_df = new_df.reset_index(drop=True)
         shapes=[]
 
-        for index, i in enumerate(new_df['product']):
+        for index, i in enumerate(new_df['Product']):
             shapes.append({'type': 'line',
                            'xref': 'x',
                            'yref': 'y',
@@ -356,6 +359,101 @@ def make_ebit_plot(production_df,
             "xaxis.tickfont.size": 8,
             })
     return fig
+
+def parse_contents(contents, filename, date):
+    content_type, content_string = contents.split(',')
+
+    decoded = base64.b64decode(content_string)
+    try:
+        if 'csv' in filename:
+            # Assume that the user uploaded a CSV file
+            df = pd.read_csv(
+                io.StringIO(decoded.decode('utf-8')))
+        elif 'xls' in filename:
+            # Assume that the user uploaded an excel file
+            df = pd.read_excel(io.BytesIO(decoded))
+    except Exception as e:
+        print(e)
+        return html.Div([
+            'There was an error processing this file.'
+        ])
+
+    return df
+    # html.Div([
+    #     html.H5(filename),
+    #     html.H6(datetime.datetime.fromtimestamp(date)),
+    #
+    #     dash_table.DataTable(
+    #         data=df.head(10).to_dict('records'),
+    #         columns=[{'name': i, 'id': i} for i in df.columns]
+    #     ),
+    #
+    #     html.Hr(),  # horizontal line
+    #
+    #     # For debugging, display the raw contents provided by the web browser
+    #     html.Div('Raw Content'),
+    #     html.Pre(contents[0:200] + '...', style={
+    #         'whiteSpace': 'pre-wrap',
+    #         'wordBreak': 'break-all'
+    #     })
+    # ])
+
+UPLOAD = html.Div([
+    dcc.Upload(
+        id='upload-data',
+        children=html.Div([
+            'Drag and Drop or ',
+            html.A('Select Files')
+        ]),
+        style={
+            'width': '95%',
+            'height': '60px',
+            'lineHeight': '60px',
+            'borderWidth': '1px',
+            'borderStyle': 'dashed',
+            'borderRadius': '5px',
+            'textAlign': 'center',
+            'margin': '10px'
+        },
+        # Allow multiple files to be uploaded
+        multiple=True
+    ),
+
+    html.P('Margin Column'),
+    html.P(id='bleh'),
+    dcc.Dropdown(id='upload-margin',
+                 multi=False,
+                 options=[],
+                 className="dcc_control",
+                 style={'textAlign': 'center',
+                        'margin-bottom': '10px'}),
+    html.P('Descriptor-Attribute Columns'),
+    dcc.Dropdown(id='upload-descriptors',
+                 multi=True,
+                 options=[],
+                 className="dcc_control",
+                 style={'textAlign': 'left',
+                        'margin-bottom': '10px'}),
+    html.Button('Proccess data file',
+                id='datafile-button',
+                style={'textAlign': 'center',
+                       'margin-bottom': '10px'}),
+    html.Div(id='production-df-upload',
+             style={'display': 'none'},
+             children=production_json),
+    html.Div(id='stat-df-upload',
+             style={'display': 'none'},
+             children=stat_json),
+    html.Div(id='descriptors-upload',
+             style={'display': 'none'},
+             children=descriptors),
+    html.Div(id='metric-upload',
+             style={'display': 'none'},
+             children=metric),
+    html.Div(id='production-df-holding',
+             style={'display': 'none'},
+             children=metric)
+],)
 
 ABOUT = html.Div([dcc.Markdown('''
 
@@ -444,8 +542,9 @@ html.Div([
     ),
 html.Div([
     html.Div([
-    dcc.Tabs(id='tabs-control', value='tab-1', children=[
+    dcc.Tabs(id='tabs-control', value='tab-4', children=[
         dcc.Tab(label='About', value='tab-3', children=[ABOUT]),
+        dcc.Tab(label='Upload', value='tab-4', children=[UPLOAD]),
         dcc.Tab(label='Visualization', value='tab-1', children=[
             html.Div([
             html.P('Presets',
@@ -557,7 +656,7 @@ html.Div([
         ),
     html.Div([
         dcc.Graph(id='ebit_plot',
-                  figure=make_ebit_plot(production_df)),
+                  figure=make_ebit_plot(production_df, stat_df)),
         ], className='mini_container',
            id='ebit-family-block',
            style={'display': 'block'},
@@ -566,10 +665,11 @@ html.Div([
 ),
     html.Div([
         html.Div([
-            dcc.Graph(
-                        id='violin_plot',
-                        figure=make_violin_plot()),
+            dcc.Loading(id='violin-load'),
+
             html.Div([
+            dcc.Graph(id='violin_plot',
+                        figure=make_violin_plot(production_df, stat_df)),
             dcc.Loading(
                 id="loading-1",
                 type="default",
@@ -578,10 +678,24 @@ html.Div([
                     ],
                     id='opportunity-table-block',
                     style={'overflow': 'scroll',
-                           'display': 'none'}),
+                           'display': 'none',
+                           'max-width': '500px'}),
+            html.Div([
+            dcc.Loading(
+                id="loading-2",
+                type="default",
+                children=dash_table.DataTable(id='upload-table',),),
+                    ],
+                    id='upload-table-block',
+                    style={'overflow': 'scroll',
+                           'display': 'none',
+                           'max-width': '500px'}),
             ], className='mini_container',
                id='violin',
-               style={'display': 'block'},
+               style={'display': 'block',
+                      'overflow': 'scroll',
+                      'padding': '0px 20px 20px 20px',
+                      'max-height': '500px'},
                 ),
         html.Div([
             dcc.Dropdown(id='length_width_dropdown',
@@ -593,7 +707,7 @@ html.Div([
                         className="dcc_control"),
             dcc.Graph(
                         id='sunburst_plot',
-                        figure=make_sunburst_plot()),
+                        figure=make_sunburst_plot(production_df)),
                 ], className='mini_container',
                    id='sunburst',
                 ),
@@ -607,16 +721,103 @@ html.Div([
 app.config.suppress_callback_exceptions = True
 
 @app.callback(
+    Output('violin-load', 'children'),
+    [Input('sort', 'value'),
+    Input('select', 'value'),
+    Input('descriptor_dropdown', 'value'),
+    Input('family_dropdown', 'value'),
+    Input('tabs-control', 'value'),
+    Input('production-df-upload', 'children'),
+    Input('stat-df-upload', 'children'),
+    Input('opportunity-button', 'n_clicks')]
+)
+def display_violin_plot(sort, select, descriptors, families, tab,
+                        production_df, stat_df, button):
+    ctx = dash.callback_context
+    production_df = pd.read_json(production_df)
+    stat_df = pd.read_json(stat_df)
+    if tab == 'tab-4':
+        columns=[{"name": i, "id": i} for i in production_df.columns]
+        return dash_table.DataTable(id='upload-table',
+            data=production_df.to_dict('rows'),
+            columns=columns)
+    elif (tab == 'tab-2'):
+        results = maximize_ebitda(production_df, stat_df, families, descriptors)
+        results[results.columns[3:]] = np.round(results[results.columns[3:]].astype(float))
+        columns=[{"name": i, "id": i} for i in results.columns]
+        return dash_table.DataTable(id='opportunity-table',
+                                    row_selectable='multi',
+                                    data=results.to_dict('rows'),
+                                    columns=columns)
+    else:
+        print(sort)
+        plot = make_violin_plot(production_df, stat_df, sort, select, descriptors, families)
+        return dcc.Graph(figure=plot, id='violin_plot')
+
+@app.callback(
+     Output('violin', 'style'),
+    [Input('tabs-control', 'value'),]
+)
+def display_violin_plot(tab):
+    if (tab == 'tab-4') or (tab == 'tab-2'):
+        return {'display': 'block',
+               'overflow': 'scroll',
+               'padding': '20px 20px 20px 20px',
+               'max-height': '550px'}
+    else:
+        return {'display': 'block',
+               'padding': '20px 20px 20px 20px'}
+
+@app.callback(
+    [Output('upload-margin', 'options'),
+   Output('upload-descriptors', 'options'),
+   Output('production-df-holding', 'children'),],
+  [Input('upload-data', 'contents'),],
+  [State('upload-data', 'filename'),
+   State('upload-data', 'last_modified')])
+def update_production_df_and_table(list_of_contents, list_of_names, list_of_dates):
+    if list_of_contents is not None:
+        df = [parse_contents(c, n, d) for c, n, d in
+            zip(list_of_contents, list_of_names, list_of_dates)]
+        df = df[0]
+        columns = [{'label': i, 'value': i} for i in df.columns]
+        columns_table = [{"name": i, "id": i} for i in df.columns]
+        return columns, columns, df.to_json()
+
+@app.callback(
+    [Output('upload-table', 'data'),
+    Output('upload-table', 'columns'),],
+    [Input('production-df-holding', 'children'),
+     Input('production-df-upload', 'children'),]
+)
+def store_upload_results(df_holding, df_upload):
+    if df_holding is not None:
+
+        production_df = pd.read_json(df_holding)
+    else:
+        production_df = pd.read_json(df_upload)
+    # production_df = production_df.sort_values(['Product Family', 'Adjusted EBITDA'], ascending=False).reset_index(drop=True)
+    columns=[{"name": i, "id": i} for i in production_df.columns]
+    return production_df.to_dict('rows'), columns
+
+@app.callback(
     [Output('opportunity-table', 'data'),
     Output('opportunity-table', 'columns'),],
     [Input('descriptor_dropdown_analytics', 'value'),
      Input('family_dropdown_analytics', 'value'),
-     Input('opportunity-button', 'n_clicks')]
+     Input('opportunity-button', 'n_clicks'),
+     Input('production-df-upload', 'children'),
+     Input('stat-df-upload', 'children')]
 )
-def display_opportunity_results(descriptors, families, button):
+def display_opportunity_results(descriptors, families,
+                                button, production_df, stat_df):
+    production_df = pd.read_json(production_df)
+    production_df = production_df.sort_values(['Product Family', 'Adjusted EBITDA'],
+        ascending=False).reset_index(drop=True)
+    stat_df = pd.read_json(stat_df)
     ctx = dash.callback_context
     if ctx.triggered[0]['prop_id'] == 'opportunity-button.n_clicks':
-        results = maximize_ebitda(families, descriptors)
+        results = maximize_ebitda(production_df, stat_df, families, descriptors)
         results[results.columns[3:]] = np.round(results[results.columns[3:]].astype(float))
         columns=[{"name": i, "id": i} for i in results.columns]
         return results.to_dict('rows'), columns
@@ -640,40 +841,7 @@ def update_preset_view(value, options):
             ['Cards Core'], 'Worst'
     else:
         return descriptors, False, production_df['Product Family'].unique(),\
-            'Best'
-
-@app.callback(
-    Output('sunburst_plot', 'figure'),
-    [Input('violin_plot', 'clickData'),
-     Input('length_width_dropdown', 'value'),
-     Input('sort', 'value'),
-     Input('select', 'value'),
-     Input('descriptor_dropdown', 'value'),
-     Input('family_dropdown', 'value'),
-     Input('opportunity-table', 'derived_viewport_selected_rows'),
-     Input('opportunity-table', 'data'),
-     Input('tabs-control', 'value')])
-def display_sunburst_plot(clickData, toAdd, sort, select, descriptors, families,
-                            rows, data, tab):
-    if (tab == 'tab-1') | (tab == 'tab-3'):
-        stat_df = available_indicator_dropdown(families, descriptors)
-        if sort == 'Best':
-            local_df = stat_df.sort_values('score', ascending=False)
-            local_df = local_df.reset_index(drop=True)
-        else:
-            local_df = stat_df
-        if descriptors != None:
-            local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
-        local_df = local_df.reset_index(drop=True)
-        col = local_df['descriptor'][select[0]]
-        val = local_df['group'][select[0]]
-        return make_sunburst_plot(clickData, toAdd, col, val)
-    elif tab == 'tab-2':
-        results_df = pd.DataFrame(data)
-        results_df = results_df.iloc[rows].reset_index(drop=True)
-        col=results_df.iloc[-1]['Descriptor']
-        val=results_df.iloc[-1]['Group']
-        return make_sunburst_plot(col=col, val=val)
+            'Worst'
 
 @app.callback(
     Output('descriptor-number', 'children'),
@@ -681,30 +849,6 @@ def display_sunburst_plot(clickData, toAdd, sort, select, descriptors, families,
 )
 def display_descriptor_number(select):
     return "Number of Descriptors: {}".format(select[1]-select[0])
-
-@app.callback(
-    [Output('violin_plot', 'figure'),
-     Output('violin_plot', 'style'),
-     Output('opportunity-table-block', 'style'),],
-    [Input('sort', 'value'),
-    Input('select', 'value'),
-    Input('descriptor_dropdown', 'value'),
-    Input('family_dropdown', 'value'),
-    Input('tabs-control', 'value')]
-)
-def display_violin_plot(sort, select, descriptors, families, tab):
-
-    if (tab == 'tab-1') | (tab == 'tab-3'):
-        return make_violin_plot(sort, select, descriptors, families),\
-            {'display': 'block',
-            'width': '95%'}, {'display': 'none'}
-    elif tab == 'tab-2':
-        return make_violin_plot(sort, select, descriptors, families),\
-            {'display': 'none'}, \
-            {'max-height': '500px',
-               'overflow': 'scroll',
-               'display': 'block',
-               'padding': '0px 20px 20px 20px'}
 
 @app.callback(
     Output('ebit_plot', 'figure'),
@@ -715,21 +859,26 @@ def display_violin_plot(sort, select, descriptors, families, tab):
     Input('family_dropdown', 'value'),
     Input('opportunity-table', 'derived_viewport_selected_rows'),
     Input('opportunity-table', 'data'),
-    Input('tabs-control', 'value')]
+    Input('tabs-control', 'value'),
+    Input('production-df-upload', 'children'),
+    Input('stat-df-upload', 'children')]
 )
 def display_ebit_plot(sort, select, descriptors, switch, families, rows, data,
-                      tab):
-    if (tab == 'tab-1') | (tab == 'tab-3'):
+                      tab, production_df, stat_df):
+    production_df = pd.read_json(production_df)
+    production_df = production_df.sort_values(['Product Family', 'Adjusted EBITDA'], ascending=False).reset_index(drop=True)
+    stat_df = pd.read_json(stat_df)
+    if (tab == 'tab-1') | (tab == 'tab-3') | (tab == 'tab-4'):
         if switch == True:
             select = list(np.arange(select[0],select[1]))
-            return make_ebit_plot(production_df, select, sort=sort,
+            return make_ebit_plot(production_df, stat_df, select, sort=sort,
                 descriptors=descriptors, family=families)
         else:
-            return make_ebit_plot(production_df, family=families)
+            return make_ebit_plot(production_df, stat_df, family=families)
     elif tab == 'tab-2':
         results_df = pd.DataFrame(data)
         results_df = results_df.iloc[rows].reset_index(drop=True)
-        return make_ebit_plot(production_df, results_df=results_df)
+        return make_ebit_plot(production_df, stat_df, results_df=results_df)
 
 @app.callback(
     [Output('margin-new-rev', 'children'),
@@ -741,48 +890,95 @@ def display_ebit_plot(sort, select, descriptors, switch, families, rows, data,
     Input('family_dropdown', 'value'),
     Input('opportunity-table', 'derived_viewport_selected_rows'),
     Input('opportunity-table', 'data'),
-    Input('tabs-control', 'value')]
+    Input('tabs-control', 'value'),
+    Input('production-df-upload', 'children'),
+    Input('stat-df-upload', 'children')]
 )
-def display_opportunity(sort, select, descriptors, families, rows, data, tab):
-    if (tab == 'tab-1') | (tab == 'tab-3'):
-        return calculate_margin_opportunity(sort, select, descriptors, families)
+def display_opportunity(sort, select, descriptors, families, rows, data, tab,
+                        production_df, stat_df):
+    production_df = pd.read_json(production_df)
+    production_df = production_df.sort_values(['Product Family', 'Adjusted EBITDA'], ascending=False).reset_index(drop=True)
+    stat_df = pd.read_json(stat_df)
+    if (tab == 'tab-1') | (tab == 'tab-3') | (tab == 'tab-4'):
+        return calculate_margin_opportunity(production_df, stat_df, sort, select, descriptors, families)
     elif tab == 'tab-2':
         results_df = pd.DataFrame(data)
         results_df = results_df.iloc[rows].reset_index(drop=True)
-        return calculate_margin_opportunity(results_df=results_df)
+        return calculate_margin_opportunity(production_df, stat_df, results_df=results_df)
 
 @app.callback(
     [Output('select', 'max'),
     Output('select', 'value'),],
     [Input('descriptor_dropdown', 'value'),
      Input('preset_view', 'value'),
-     Input('family_dropdown', 'value'),]
+     Input('family_dropdown', 'value'),
+     Input('production-df-upload', 'children'),
+     Input('stat-df-upload', 'children')]
 )
-def update_descriptor_choices(descriptors, preset_view_status, families):
+def update_descriptor_choices(descriptors, preset_view_status, families, production_df, stat_df):
+    production_df = pd.read_json(production_df)
+    production_df = production_df.sort_values(['Product Family', 'Adjusted EBITDA'], ascending=False).reset_index(drop=True)
+    stat_df = pd.read_json(stat_df)
     min_val = 0
     max_value = 53
     ctx = dash.callback_context
-    if preset_view_status == 'OPPORTUNITY 1':
-        value = 1
-        max_value = 2
-    elif preset_view_status == 'OPPORTUNITY 2':
-        value = 3
-        max_value = 4
-        min_val = 0
-    elif ctx.triggered[0]['value'] == 'INTERACTIVE':
-        max_value = 53
-        value = 10
-    elif (len(families) < 14) | (len(descriptors) < 8):
-        max_value = available_indicator_dropdown(families, descriptors).shape[0]
-        value = min(10, max_value)
-
-
+    if ctx.triggered[0]['prop_id'] == 'preset_view.value':
+        if preset_view_status == 'OPPORTUNITY 1':
+            value = 1
+            max_value = 2
+        elif preset_view_status == 'OPPORTUNITY 2':
+            value = 3
+            max_value = 4
+            min_val = 0
+        elif ctx.triggered[0]['value'] == 'INTERACTIVE':
+            max_value = 53
+            value = 10
+        elif (len(families) < 14) | (len(descriptors) < 8):
+            max_value = available_indicator_dropdown(production_df, stat_df, families, descriptors).shape[0]
+            value = min(10, max_value)
     else:
-        # stat_df = available_indicator_dropdown(families, descriptors)
-
-        max_value = available_indicator_dropdown(families, descriptors).shape[0]
+        max_value = available_indicator_dropdown(production_df, stat_df, families, descriptors).shape[0]
         value = min(10, max_value)
     return max_value, [min_val, value]
+
+@app.callback(
+    Output('sunburst_plot', 'figure'),
+    [#Input('violin_plot', 'clickData'),
+     Input('length_width_dropdown', 'value'),
+     Input('sort', 'value'),
+     Input('select', 'value'),
+     Input('descriptor_dropdown', 'value'),
+     Input('family_dropdown', 'value'),
+     Input('opportunity-table', 'derived_viewport_selected_rows'),
+     Input('opportunity-table', 'data'),
+     Input('tabs-control', 'value'),
+     Input('production-df-upload', 'children'),
+     Input('stat-df-upload', 'children')])
+def display_sunburst_plot(toAdd, sort, select, descriptors, families,
+                            rows, data, tab, production_df, stat_df):
+    production_df = pd.read_json(production_df)
+    production_df = production_df.sort_values(['Product Family', 'Adjusted EBITDA'], ascending=False).reset_index(drop=True)
+    stat_df = pd.read_json(stat_df)
+    if (tab == 'tab-1') | (tab == 'tab-3') | (tab == 'tab-4'):
+        local_df = available_indicator_dropdown(production_df, stat_df, families, descriptors)
+        if sort == 'Best':
+            local_df = local_df.sort_values('score', ascending=False)
+            local_df = local_df.reset_index(drop=True)
+        else:
+            local_df = local_df.sort_values('score', ascending=True)
+            local_df = local_df.reset_index(drop=True)
+        if descriptors != None:
+            local_df = local_df.loc[local_df['descriptor'].isin(descriptors)]
+        local_df = local_df.reset_index(drop=True)
+        col = local_df['descriptor'][select[0]]
+        val = local_df['group'][select[0]]
+        return make_sunburst_plot(production_df, toAdd=toAdd, col=col, val=val)
+    elif tab == 'tab-2':
+        results_df = pd.DataFrame(data)
+        results_df = results_df.iloc[rows].reset_index(drop=True)
+        col=results_df.iloc[-1]['Descriptor']
+        val=results_df.iloc[-1]['Group']
+        return make_sunburst_plot(production_df, toAdd=toAdd, col=col, val=val)
 
 if __name__ == "__main__":
     app.run_server(debug=True)

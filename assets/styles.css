@@ -249,6 +249,14 @@ body {
   flex: 2;
 }
 
+#upload-table-block {
+  flex: 2;
+}
+
+#opportunity-table-block {
+  flex: 2;
+}
+
 #descriptorBlock {
   flex: 1;
 }
