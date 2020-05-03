@@ -463,6 +463,7 @@ UPLOAD = html.Div([
         dcc.Dropdown(id='preset-files',
                      multi=False,
                      options=[{'label': i, 'value': i} for i in ['polyamides', 'films']],
+                     placeholder="Select Cloud Dataset",
                      className='dcc_control',
                      style={'textAlign': 'center',
                             'width': '95%',
@@ -470,13 +471,13 @@ UPLOAD = html.Div([
                             'margin-right': '40px'}
                             ),],className='four columns',
                             id='up-option-3',
-                                                        # style={'textAlign': 'right',
-                                                        #        # 'justify-content': 'center',
-                                                        #        # 'align-items': 'center',
-                                                        #        'width': '300px',
-                                                        #        'height': '60px',
-                                                        #        'vertical-align': 'middle',
-                                                        #        'margin-top': '15px'}
+                                                        style={'textAlign': 'right',
+                                                               # 'justify-content': 'center',
+                                                               # 'align-items': 'center',
+                                                               # 'width': '300px',
+                                                               # 'height': '60px',
+                                                               'vertical-align': 'middle',
+                                                               'margin-right': '40px'}
                                                                ),
         ], className='row flex-display',
         ),
