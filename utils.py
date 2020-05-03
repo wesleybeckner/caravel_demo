@@ -111,9 +111,10 @@ def calculate_equivalent_days(df):
     return annual_operating, opportunity
 
 def my_median_test(df,
-                   metric='Yield',
+                   metric='Yield', 
                    descriptors = ['Product group', 'Line', 'Shift'],
-                   stat_cut_off=1e-2):
+                   stat_cut_off=1e-2,
+                   continuous=False):
     """
     Parameters
     ----------
@@ -128,33 +129,44 @@ def my_median_test(df,
     stat_df: DataFrame
         Moods Median Test Results for Metric
     """
-    moods = []
-    for descriptor in descriptors:
-        for item in df[descriptor].unique():
-            try:
-                stat, p, m, table = stats.median_test(df.loc[df[descriptor] == item][metric],
-                                       df.loc[~(df[descriptor] == item)][metric], nan_policy='omit')
-                moods.append([descriptor, item, stat, p, m, table])
-            except:
-                print(descriptor, item, 'failed stats test')
-                pass
-    stat_df = pd.DataFrame(moods)
-    stat_df.columns = ['descriptor', 'group', 'stat', 'p', 'm', 'table']
-    stat_df = stat_df.sort_values(by='stat', ascending=False).reset_index(drop=True)
-    stat_df = stat_df.loc[stat_df['p'] < 1e-2].drop_duplicates('stat').reset_index(drop=True)
-    scores = []
-    for index in range(stat_df.shape[0]):
-        x = df.loc[(df[stat_df.iloc[index]['descriptor']] == \
-                    stat_df.iloc[index]['group'])][metric]
-        y = df.loc[(df[stat_df.iloc[index]['descriptor']] == \
-                    stat_df.iloc[index]['group'])][metric].median()
-        y = df.loc[(df[stat_df.iloc[index]['descriptor']] ==
-            stat_df.iloc[index]['group'])][stat_df.iloc[index]['descriptor']]
-        if metric == 'Uptime':
-            scores.append(stat_df['table'][index][1][0] / stat_df['table'][index][0][0])
-        else:
-            scores.append(stat_df['table'][index][0][0] / stat_df['table'][index][1][0])
-    stat_df['score'] = scores
-    stat_df = stat_df.sort_values('score', ascending=True)
-    stat_df = stat_df.reset_index(drop=True)
+    if continuous:
+        moods = []
+        for descriptor in descriptors:
+            stat, p = stats.pearsonr(production_df[metric], production_df[descriptor])
+            moods.append([descriptor, stat, p])
+        stat_df = pd.DataFrame(moods)
+        stat_df.columns = ['descriptor', 'stat', 'p']
+        stat_df = stat_df.sort_values(by='stat', ascending=False).reset_index(drop=True)
+        stat_df = stat_df.loc[stat_df['p'] < stat_cut_off].drop_duplicates('stat').reset_index(drop=True)
+        stat_df['score'] = stat_df['stat']
+        stat_df = stat_df.reset_index(drop=True)
+    else:
+        moods = []
+        for descriptor in descriptors:
+            for item in df[descriptor].unique():
+                try:
+                    stat, p, m, table = stats.median_test(df.loc[df[descriptor] == item][metric],
+                                           df.loc[~(df[descriptor] == item)][metric], nan_policy='omit')
+                    moods.append([descriptor, item, stat, p, m, table])
+                except:
+                    pass
+        stat_df = pd.DataFrame(moods)
+        stat_df.columns = ['descriptor', 'group', 'stat', 'p', 'm', 'table']
+        stat_df = stat_df.sort_values(by='stat', ascending=False).reset_index(drop=True)
+        stat_df = stat_df.loc[stat_df['p'] < stat_cut_off].drop_duplicates('stat').reset_index(drop=True)
+        scores = []
+        for index in range(stat_df.shape[0]):
+            x = df.loc[(df[stat_df.iloc[index]['descriptor']] == \
+                        stat_df.iloc[index]['group'])][metric]
+            y = df.loc[(df[stat_df.iloc[index]['descriptor']] == \
+                        stat_df.iloc[index]['group'])][metric].median()
+            y = df.loc[(df[stat_df.iloc[index]['descriptor']] ==
+                stat_df.iloc[index]['group'])][stat_df.iloc[index]['descriptor']]
+            if metric == 'Uptime':
+                scores.append(stat_df['table'][index][1][0] / stat_df['table'][index][0][0])
+            else:
+                scores.append(stat_df['table'][index][0][0] / stat_df['table'][index][1][0])
+        stat_df['score'] = scores
+        stat_df = stat_df.sort_values('score', ascending=True)
+        stat_df = stat_df.reset_index(drop=True)
     return stat_df
