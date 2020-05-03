@@ -437,24 +437,31 @@ UPLOAD = html.Div([
             style={
                 'width': '95%',
                 'height': '60px',
-                'lineHeight': '60px',
+                # 'lineHeight': '60px',
                 'borderWidth': '1px',
                 'borderStyle': 'dashed',
                 'borderRadius': '5px',
                 'textAlign': 'center',
+                'vertical-align': 'middle',
                 'margin': '10px',
-                'margin-left': '40px',
+
+                'padding': '5px',
             },
             # Allow multiple files to be uploaded
             multiple=False
         ),],className='four columns',
+            style={
+            'margin-left': '40px',
+            },
         id='up-option-1',),
         html.Div([
         html.P(' - or - ',
-        style={'textAlign': 'center',
+        style={
+               'textAlign': 'center',
+               # 'margin-left': '30px',
                # 'justify-content': 'center',
                # 'align-items': 'center',
-               'vertical-align': 'middle',
+               # 'vertical-align': 'middle',
                'margin-top': '30px'}
                ),],className='four columns',
                    id='up-option-2',
@@ -463,21 +470,28 @@ UPLOAD = html.Div([
         dcc.Dropdown(id='preset-files',
                      multi=False,
                      options=[{'label': i, 'value': i} for i in ['polyamides', 'films']],
-                     placeholder="Select Cloud Dataset",
+                     # placeholder="Select Cloud Dataset",
                      className='dcc_control',
-                     style={'textAlign': 'center',
+                     style={
+                            'textAlign': 'center',
                             'width': '95%',
                             'margin': '10px',
-                            'margin-right': '40px'}
+                            # 'height': '60px',
+                            # 'margin-right': '40px'
+                            }
                             ),],className='four columns',
                             id='up-option-3',
-                                                        style={'textAlign': 'right',
-                                                               # 'justify-content': 'center',
-                                                               # 'align-items': 'center',
-                                                               # 'width': '300px',
-                                                               # 'height': '60px',
-                                                               'vertical-align': 'middle',
-                                                               'margin-right': '40px'}
+                                                        style={
+                                                        # 'textAlign': 'right',
+                                                        #        # 'justify-content': 'center',
+                                                        #        # 'align-items': 'center',
+                                                        #        # 'width': '300px',
+                                                        #        # 'height': '60px',
+                                                        #        'vertical-align': 'middle',
+                                                        # 'width': '95%',
+                                                        'margin-right': '40px',
+
+                                                               }
                                                                ),
         ], className='row flex-display',
         ),
