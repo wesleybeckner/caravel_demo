@@ -621,7 +621,7 @@ html.Div([
             ], id='kpi1', className='six columns', style={'margin': '10px'}
             ),
             html.Div([
-                html.Img(src='assets/money_icon_1.png', height='80px'),
+                html.Img(src='assets/money_icon_1.png', width='80px'),
             ], id='icon1', className='five columns',
                 style={
                     'textAlign': 'right',
@@ -636,11 +636,11 @@ html.Div([
     html.Div([
         html.Div([
             html.Div([
-                html.H4(id='margin-new-rev-percent'), html.H6('Unique Products')
-            ], className='six columns', style={'margin': '10px'}
+                html.H4(id='margin-new-rev-percent'), html.H6('Unique Products', id='margin-label2')
+            ], className='six columns', style={'margin': '10px'}, id='kpi2',
             ),
             html.Div([
-                html.Img(src='assets/product_icon_3.png', height='80px'),
+                html.Img(src='assets/product_icon_3.png', width='80px'),
             ], className='five columns',
                 style={
                     'textAlign': 'right',
@@ -655,11 +655,11 @@ html.Div([
     html.Div([
         html.Div([
             html.Div([
-                html.H4(id='margin-new-products'), html.H6('Volume')
-            ], className='six columns', style={'margin': '10px'}
+                html.H4(id='margin-new-products'), html.H6('Volume', id='margin-label3')
+            ], className='six columns', style={'margin': '10px'}, id='kpi3',
             ),
             html.Div([
-                html.Img(src='assets/volume_icon_3.png', height='80px'),
+                html.Img(src='assets/volume_icon_3.png', width='80px'),
             ], className='five columns',
                 style={
                     'textAlign': 'right',
