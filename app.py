@@ -163,11 +163,11 @@ def calculate_margin_opportunity(production_df, stat_df, volume_column, margin_c
     old_kg = production_df[volume_column].sum()
     kg_percent = new_kg / old_kg * 100
 
-    return "€{:.1f} M of €{:.1f} M ({:.1f}%)".format(new_EBITDA/1e6,
+    return "€{:.2f} M of €{:.2f} M ({:.1f}%)".format(new_EBITDA/1e6,
                 production_df[margin_column].sum()/1e6, EBITDA_percent), \
             "{} of {} Products ({:.1f}%)".format(new_products,old_products,
                 product_percent_reduction),\
-            "{:.1f} M of {:.1f} M kg ({:.1f}%)".format(new_kg/1e6, old_kg/1e6,
+            "{:.2f} M of {:.2f} M kg ({:.1f}%)".format(new_kg/1e6, old_kg/1e6,
                 kg_percent)
 
 def make_violin_plot(production_df, stat_df, margin_column, sort='Worst',
@@ -1107,6 +1107,15 @@ def update_descriptor_choices(descriptors,families, production_df, stat_df, marg
     max_value = available_indicator_dropdown(production_df, stat_df, families, descriptors).shape[0]
     value = min(10, max_value)
     return max_value, [min_val, value]
+
+@app.callback(
+    Output('sort', 'options'),
+    [Input('metric-upload', 'children')]
+)
+def update_sort_options(metric):
+    return [{'label': i, 'value': j} for i, j in \
+            [['Low {}'.format(metric), 'Worst'],
+            ['High {}'.format(metric), 'Best']]]
 
 @app.callback(
     Output('descriptor-number', 'children'),
