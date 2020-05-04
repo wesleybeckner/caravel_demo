@@ -523,7 +523,7 @@ UPLOAD = html.Div([
                max=1,
                step=0.01,
                value=0.5),
-    html.Button('Proccess data file',
+    html.Button('Process data file',
                 id='datafile-button',
                 style={'textAlign': 'center',
                        'margin-bottom': '10px'}),
@@ -585,17 +585,23 @@ Find Opportunity: Algorithm calculates % EBITDA increase by eliminating products
              'max-height': '500px',
              'overflow': 'scroll'})
 
-search_bar = dbc.Row(
+search_bar = html.A(
+    dbc.Row(
     [
         dbc.Col(html.Img(src='assets/mfg_logo.png', height="40px")),
     ],
     no_gutters=True,
     className="ml-auto flex-nowrap mt-3 mt-md-0",
     align="center",
+),
+href='https://mfganalytic.com/',
+# no_gutters=True,
+className="ml-auto flex-nowrap mt-3 mt-md-0",
+# align="center",
 )
 
 NAVBAR = dbc.Navbar(
-    [
+    [ html.A(
             dbc.Row(
                 [
                     dbc.Col(html.Img(src='assets/caravel_logo.png', height="40px")),
@@ -603,6 +609,8 @@ NAVBAR = dbc.Navbar(
                 ],
                 align="center",
                 no_gutters=True,
+            ),
+            href='http://caravelsolutions.com/',
             ),
         dbc.Collapse(search_bar, id="navbar-collapse", navbar=True),
     ],
