@@ -39,23 +39,22 @@ auth = dash_auth.BasicAuth(
 server = app.server
 
 ########## KP Films
-# production_df = pd.read_csv('data/films.csv')
-# metric = margin_column = 'EBITDA (€)'
-# volume_column = 'Net Sales Quantity in KG'
-# descriptors = list(production_df.columns[:8])
-# stat_df = pd.read_csv('data/category_stats.csv')
-
+production_df = pd.read_csv('data/films.csv')
+metric = margin_column = 'EBITDA (€)'
+volume_column = 'Net Sales Quantity in KG'
+descriptors = list(production_df.columns[:8])
+stat_df = pd.read_csv('data/category_stats.csv')
 ##########
 
 ########## Kraton
-production_df = pd.read_csv('data/polyamides.csv')
-margin_column = metric ='CM Rate ($/hr)'
-volume_column = 'Sales Vol'
-descriptors = ['U14INT', 'U18', 'TOFA1INT', 'D60', 'M35', 'EDA',
-       'H2PO4', 'HMDA', 'Polyetheramine', 'Piperazine', 'Azelaic Acid',
-       'Sebacic Acid', 'Dimer Acid', 'Sales Vol']
-production_df[descriptors] = np.round(production_df[descriptors].astype(float),1)
-stat_df = pd.read_csv('data/kraton_stats.csv')
+# production_df = pd.read_csv('data/polyamides.csv')
+# margin_column = metric ='CM Rate ($/hr)'
+# volume_column = 'Sales Vol'
+# descriptors = ['U14INT', 'U18', 'TOFA1INT', 'D60', 'M35', 'EDA',
+#        'H2PO4', 'HMDA', 'Polyetheramine', 'Piperazine', 'Azelaic Acid',
+#        'Sebacic Acid', 'Dimer Acid', 'Sales Vol']
+# production_df[descriptors] = np.round(production_df[descriptors].astype(float),1)
+# stat_df = pd.read_csv('data/kraton_stats.csv')
 ##########
 
 production_df[descriptors] = production_df[descriptors].astype(str)
