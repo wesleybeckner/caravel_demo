@@ -134,6 +134,26 @@ body {
   flex: 2;
   position: relative;
 }
+#kpi2 {
+  flex: 2;
+  position: relative;
+}
+#kpi3 {
+  flex: 2;
+  position: relative;
+}
+#margin-label {
+  flex: 1;
+  position: relative;
+}
+#margin-label2 {
+  flex: 1;
+  position: relative;
+}
+#margin-label3 {
+  flex: 1;
+  position: relative;
+}
 #icon1 {
   flex: 1;
   position: relative;

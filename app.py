@@ -162,11 +162,11 @@ def calculate_margin_opportunity(production_df, stat_df, volume_column, margin_c
     old_kg = production_df[volume_column].sum()
     kg_percent = new_kg / old_kg * 100
 
-    return "€{:.1f} M of €{:.1f} M ({:.1f}%)".format(new_EBITDA/1e6,
+    return "€{:.2f} M of €{:.2f} M ({:.1f}%)".format(new_EBITDA/1e6,
                 production_df[margin_column].sum()/1e6, EBITDA_percent), \
             "{} of {} Products ({:.1f}%)".format(new_products,old_products,
                 product_percent_reduction),\
-            "{:.1f} M of {:.1f} M kg ({:.1f}%)".format(new_kg/1e6, old_kg/1e6,
+            "{:.2f} M of {:.2f} M kg ({:.1f}%)".format(new_kg/1e6, old_kg/1e6,
                 kg_percent)
 
 def make_violin_plot(production_df, stat_df, margin_column, sort='Worst',
@@ -522,7 +522,7 @@ UPLOAD = html.Div([
                max=1,
                step=0.01,
                value=0.5),
-    html.Button('Proccess data file',
+    html.Button('Process data file',
                 id='datafile-button',
                 style={'textAlign': 'center',
                        'margin-bottom': '10px'}),
@@ -584,17 +584,23 @@ Find Opportunity: Algorithm calculates % EBITDA increase by eliminating products
              'max-height': '500px',
              'overflow': 'scroll'})
 
-search_bar = dbc.Row(
+search_bar = html.A(
+    dbc.Row(
     [
         dbc.Col(html.Img(src='assets/mfg_logo.png', height="40px")),
     ],
     no_gutters=True,
     className="ml-auto flex-nowrap mt-3 mt-md-0",
     align="center",
+),
+href='https://mfganalytic.com/',
+# no_gutters=True,
+className="ml-auto flex-nowrap mt-3 mt-md-0",
+# align="center",
 )
 
 NAVBAR = dbc.Navbar(
-    [
+    [ html.A(
             dbc.Row(
                 [
                     dbc.Col(html.Img(src='assets/caravel_logo.png', height="40px")),
@@ -602,6 +608,8 @@ NAVBAR = dbc.Navbar(
                 ],
                 align="center",
                 no_gutters=True,
+            ),
+            href='http://caravelsolutions.com/',
             ),
         dbc.Collapse(search_bar, id="navbar-collapse", navbar=True),
     ],
@@ -620,7 +628,7 @@ html.Div([
             ], id='kpi1', className='six columns', style={'margin': '10px'}
             ),
             html.Div([
-                html.Img(src='assets/money_icon_1.png', height='80px'),
+                html.Img(src='assets/money_icon_1.png', width='80px'),
             ], id='icon1', className='five columns',
                 style={
                     'textAlign': 'right',
@@ -635,11 +643,11 @@ html.Div([
     html.Div([
         html.Div([
             html.Div([
-                html.H4(id='margin-new-rev-percent'), html.H6('Unique Products')
-            ], className='six columns', style={'margin': '10px'}
+                html.H4(id='margin-new-rev-percent'), html.H6('Unique Products', id='margin-label2')
+            ], className='six columns', style={'margin': '10px'}, id='kpi2',
             ),
             html.Div([
-                html.Img(src='assets/product_icon_3.png', height='80px'),
+                html.Img(src='assets/product_icon_3.png', width='80px'),
             ], className='five columns',
                 style={
                     'textAlign': 'right',
@@ -654,11 +662,11 @@ html.Div([
     html.Div([
         html.Div([
             html.Div([
-                html.H4(id='margin-new-products'), html.H6('Volume')
-            ], className='six columns', style={'margin': '10px'}
+                html.H4(id='margin-new-products'), html.H6('Volume', id='margin-label3')
+            ], className='six columns', style={'margin': '10px'}, id='kpi3',
             ),
             html.Div([
-                html.Img(src='assets/volume_icon_3.png', height='80px'),
+                html.Img(src='assets/volume_icon_3.png', width='80px'),
             ], className='five columns',
                 style={
                     'textAlign': 'right',
@@ -1098,6 +1106,15 @@ def update_descriptor_choices(descriptors,families, production_df, stat_df, marg
     max_value = available_indicator_dropdown(production_df, stat_df, families, descriptors).shape[0]
     value = min(10, max_value)
     return max_value, [min_val, value]
+
+@app.callback(
+    Output('sort', 'options'),
+    [Input('metric-upload', 'children')]
+)
+def update_sort_options(metric):
+    return [{'label': i, 'value': j} for i, j in \
+            [['Low {}'.format(metric), 'Worst'],
+            ['High {}'.format(metric), 'Best']]]
 
 @app.callback(
     Output('descriptor-number', 'children'),
