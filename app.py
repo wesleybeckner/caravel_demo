@@ -526,6 +526,9 @@ UPLOAD = html.Div([
                 id='datafile-button',
                 style={'textAlign': 'center',
                        'margin-bottom': '10px'}),
+],)
+
+HIDDEN = html.Div([
     html.Div(id='production-df-upload',
              style={'display': 'none'},
              children=production_json),
@@ -544,7 +547,7 @@ UPLOAD = html.Div([
     html.Div(id='production-df-holding',
              style={'display': 'none'},
              children=None),
-],)
+])
 
 ABOUT = html.Div([dcc.Markdown('''
 
@@ -624,7 +627,7 @@ html.Div([
     html.Div([
         html.Div([
             html.Div([
-                html.H4(id='margin-new-rev'), html.H6(margin_column, id='margin-label')
+                html.H5(id='margin-new-rev'), html.H6(margin_column, id='margin-label')
             ], id='kpi1', className='six columns', style={'margin': '10px'}
             ),
             html.Div([
@@ -643,7 +646,7 @@ html.Div([
     html.Div([
         html.Div([
             html.Div([
-                html.H4(id='margin-new-rev-percent'), html.H6('Unique Products', id='margin-label2')
+                html.H5(id='margin-new-rev-percent'), html.H6('Unique Products', id='margin-label2')
             ], className='six columns', style={'margin': '10px'}, id='kpi2',
             ),
             html.Div([
@@ -662,7 +665,7 @@ html.Div([
     html.Div([
         html.Div([
             html.Div([
-                html.H4(id='margin-new-products'), html.H6('Volume', id='margin-label3')
+                html.H5(id='margin-new-products'), html.H6('Volume', id='margin-label3')
             ], className='six columns', style={'margin': '10px'}, id='kpi3',
             ),
             html.Div([
@@ -705,9 +708,9 @@ html.Div([
     ),
 html.Div([
     html.Div([
-    dcc.Tabs(id='tabs-control', value='tab-4', children=[
+    dcc.Tabs(id='tabs-control', value='tab-1', children=[
         dcc.Tab(label='About', value='tab-3', children=[ABOUT]),
-        dcc.Tab(label='Upload', value='tab-4', children=[UPLOAD]),
+        # dcc.Tab(label='Upload', value='tab-4', children=[UPLOAD]),
         dcc.Tab(label='Visualization', value='tab-1', children=[
             html.Div([
             # html.P('Presets',
@@ -882,7 +885,7 @@ html.Div([
                style={'margin-bottom': '10px'},
             ),
     ],
-    ),
+    ), HIDDEN,
 ],
 )
 app.config.suppress_callback_exceptions = True
@@ -1218,59 +1221,59 @@ def display_sunburst_plot(clickData, toAdd, sort, select, descriptors, families,
     return make_sunburst_plot(production_df, margin_column, descriptors, clickData=clickData, toAdd=toAdd, col=col, val=val)
 
 ### UPLOAD TOOL ###
-@app.callback(
-    [Output('upload-margin', 'options'),
-   Output('upload-descriptors', 'options'),
-   Output('production-df-holding', 'children'),
-   Output('upload-volume', 'options')],
-  [Input('upload-data', 'contents'),
-   Input('preset-files', 'value')],
-  [State('upload-data', 'filename'),
-   State('upload-data', 'last_modified')])
-def update_production_df_and_table(list_of_contents, preset_file, list_of_names, list_of_dates):
-    if list_of_contents is not None:
-        df = [parse_contents(c, n, d) for c, n, d in
-            zip(list_of_contents, list_of_names, list_of_dates)]
-        df = df[0]
-        columns = [{'label': i, 'value': i} for i in df.columns]
-        columns_table = [{"name": i, "id": i} for i in df.columns]
-        return columns, columns, df.to_json(), columns
-    elif preset_file is not None:
-        df = pd.read_csv('data/{}.csv'.format(preset_file))
-        columns = [{'label': i, 'value': i} for i in df.columns]
-        columns_table = [{"name": i, "id": i} for i in df.columns]
-        return columns, columns, df.to_json(), columns
-
-@app.callback(
-    [Output('production-df-upload', 'children'),
-    Output('stat-df-upload', 'children'),
-    Output('descriptors-upload', 'children'),
-    Output('metric-upload', 'children'),
-    Output('volume-upload', 'children'),],
-   [Input('production-df-holding', 'children'),
-    Input('upload-margin', 'value'),
-    Input('upload-descriptors', 'value'),
-    Input('datafile-button', 'n_clicks'),
-    Input('upload-volume', 'value'),
-    Input('p-value-slider', 'value')]
-)
-def update_main_dataframe(holding_df, margin, descriptors, button, volume, pvalue):
-    ctx = dash.callback_context
-    if ctx.triggered[0]['prop_id'] == 'datafile-button.n_clicks':
-        production_df = pd.read_json(holding_df)
-        for desc in descriptors: #9 is arbitrary should be a fraction of total datapoints or something
-            if (len(production_df[desc].unique()) > 9) and (production_df[desc].dtype == float):
-                production_df[desc] = np.round(production_df[desc].astype(float),1)
-        stat_df = my_median_test(production_df,
-                   metric=margin,
-                   descriptors=descriptors,
-                   stat_cut_off=pvalue,
-                   continuous=False)
-        production_df[descriptors] = production_df[descriptors].astype(str)
-        production_df = production_df.sort_values(['Product Family', margin],
-                                                  ascending=False)
-        return production_df.to_json(), stat_df.to_json(), descriptors, margin,\
-            volume
+# @app.callback(
+#     [Output('upload-margin', 'options'),
+#    Output('upload-descriptors', 'options'),
+#    Output('production-df-holding', 'children'),
+#    Output('upload-volume', 'options')],
+#   [Input('upload-data', 'contents'),
+#    Input('preset-files', 'value')],
+#   [State('upload-data', 'filename'),
+#    State('upload-data', 'last_modified')])
+# def update_production_df_and_table(list_of_contents, preset_file, list_of_names, list_of_dates):
+#     if list_of_contents is not None:
+#         df = [parse_contents(c, n, d) for c, n, d in
+#             zip(list_of_contents, list_of_names, list_of_dates)]
+#         df = df[0]
+#         columns = [{'label': i, 'value': i} for i in df.columns]
+#         columns_table = [{"name": i, "id": i} for i in df.columns]
+#         return columns, columns, df.to_json(), columns
+#     elif preset_file is not None:
+#         df = pd.read_csv('data/{}.csv'.format(preset_file))
+#         columns = [{'label': i, 'value': i} for i in df.columns]
+#         columns_table = [{"name": i, "id": i} for i in df.columns]
+#         return columns, columns, df.to_json(), columns
+#
+# @app.callback(
+#     [Output('production-df-upload', 'children'),
+#     Output('stat-df-upload', 'children'),
+#     Output('descriptors-upload', 'children'),
+#     Output('metric-upload', 'children'),
+#     Output('volume-upload', 'children'),],
+#    [Input('production-df-holding', 'children'),
+#     Input('upload-margin', 'value'),
+#     Input('upload-descriptors', 'value'),
+#     Input('datafile-button', 'n_clicks'),
+#     Input('upload-volume', 'value'),
+#     Input('p-value-slider', 'value')]
+# )
+# def update_main_dataframe(holding_df, margin, descriptors, button, volume, pvalue):
+#     ctx = dash.callback_context
+#     if ctx.triggered[0]['prop_id'] == 'datafile-button.n_clicks':
+#         production_df = pd.read_json(holding_df)
+#         for desc in descriptors: #9 is arbitrary should be a fraction of total datapoints or something
+#             if (len(production_df[desc].unique()) > 9) and (production_df[desc].dtype == float):
+#                 production_df[desc] = np.round(production_df[desc].astype(float),1)
+#         stat_df = my_median_test(production_df,
+#                    metric=margin,
+#                    descriptors=descriptors,
+#                    stat_cut_off=pvalue,
+#                    continuous=False)
+#         production_df[descriptors] = production_df[descriptors].astype(str)
+#         production_df = production_df.sort_values(['Product Family', margin],
+#                                                   ascending=False)
+#         return production_df.to_json(), stat_df.to_json(), descriptors, margin,\
+#             volume
 # @app.callback(
 #     [Output('opportunity-table', 'data'),
 #     Output('opportunity-table', 'columns'),],
